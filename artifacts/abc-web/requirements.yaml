@@ -1,0 +1,14 @@
+packages:
+  "framer-motion": "Smooth step transitions for the ABC guided form"
+  "react-hook-form": "Form state management"
+  "@hookform/resolvers": "Zod validation for forms"
+  "date-fns": "Date formatting for emotional records"
+
+images:
+  - path: "artifacts/abc-web/public/images/hero-bg.png"
+    description: "Soft abstract gradient background in calm teal, aquamarine, and light blue colors, gentle flowing waves, suitable for a professional mental health application"
+    aspect_ratio: "16:9"
+
+notes:
+  - "The API is available via `@workspace/api-client-react` hooks."
+  - "Auth uses cookies (`credentials: 'include'`)."

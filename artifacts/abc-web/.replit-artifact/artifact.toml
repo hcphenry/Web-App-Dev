@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "ABC - Registro Emocional TCC"
+version = "1.0.0"
+id = "artifacts/abc-web"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25002
+
+[services.development]
+run = "pnpm --filter @workspace/abc-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/abc-web", "run", "build" ]
+publicDir = "artifacts/abc-web/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25002"
+BASE_PATH = "/"
