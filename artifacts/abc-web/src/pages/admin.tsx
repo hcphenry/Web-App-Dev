@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { 
-  useListUsers, useListAllRecords, useCreateUser, useUpdateUser, useDeleteUser, useSuggestPassword,
+  useListUsers, useListAllRecords, useCreateUser, useUpdateUser, useDeleteUser,
   getListUsersQueryKey, getListAllRecordsQueryKey, type User
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,9 +23,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, Eye
+  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search
 } from "lucide-react";
-import type { AbcRecord } from "@workspace/api-client-react";
 
 // --- Schemas ---
 const userSchema = z.object({
@@ -51,7 +50,6 @@ export default function AdminDashboard() {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [viewingRecord, setViewingRecord] = useState<AbcRecord | null>(null);
 
   // Form
   const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<z.infer<typeof userSchema>>({
@@ -225,58 +223,71 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
-                    <tr>
-                      <th className="px-6 py-4 font-semibold whitespace-nowrap">Fecha / Paciente</th>
-                      <th className="px-6 py-4 font-semibold min-w-[200px]">A - Situación</th>
-                      <th className="px-6 py-4 font-semibold min-w-[200px]">B - Pensamiento</th>
-                      <th className="px-6 py-4 font-semibold min-w-[200px]">C - Consecuencia</th>
-                      <th className="px-6 py-4 font-semibold min-w-[150px]">Reflexión</th>
-                      <th className="px-6 py-4 font-semibold text-right"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingRecords ? (
-                      <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Cargando registros...</td></tr>
-                    ) : !records?.length ? (
-                      <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No se encontraron registros.</td></tr>
-                    ) : records.map((r) => (
-                      <tr key={r.id} className="border-b border-border/50 hover:bg-white/40 transition-colors align-top">
-                        <td className="px-6 py-4">
-                          <div className="font-medium text-foreground">{format(new Date(r.createdAt), "dd/MM/yyyy HH:mm", { locale: es })}</div>
-                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3" /> {r.userName}
+              <div className="p-6 space-y-6">
+                {loadingRecords ? (
+                  <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span>Cargando registros...</span>
+                  </div>
+                ) : !records?.length ? (
+                  <div className="py-16 text-center text-muted-foreground">No se encontraron registros.</div>
+                ) : records.map((r) => (
+                  <div key={r.id} className="bg-white/60 border border-border/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-4 pb-3 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
+                          {format(new Date(r.createdAt), "d 'de' MMMM yyyy — HH:mm", { locale: es })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+                        {r.userName}
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">A</span>
+                          Situación
+                        </div>
+                        <p className="text-sm text-muted-foreground bg-blue-50/50 p-3 rounded-xl whitespace-pre-wrap leading-relaxed">{r.situacion}</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                          <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0">B</span>
+                          Pensamiento
+                        </div>
+                        <p className="text-sm text-muted-foreground bg-purple-50/50 p-3 rounded-xl italic whitespace-pre-wrap leading-relaxed">"{r.pensamientos}"</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                          <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold shrink-0">C</span>
+                          Consecuencia
+                        </div>
+                        <div className="text-sm text-muted-foreground bg-teal-50/50 p-3 rounded-xl space-y-2 leading-relaxed">
+                          <div className="flex justify-between items-center border-b border-border/40 pb-2">
+                            <span className="font-medium text-foreground capitalize">{r.emocion}</span>
+                            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-bold">{r.intensidad}/10</span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="line-clamp-3 text-muted-foreground">{r.situacion}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="line-clamp-3 text-muted-foreground italic">"{r.pensamientos}"</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2 items-center mb-1">
-                            <span className="font-medium capitalize">{r.emocion}</span>
-                            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{r.intensidad}/10</span>
-                          </div>
-                          <p className="line-clamp-2 text-muted-foreground text-xs">{r.conducta}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          {r.reflexion ? (
-                            <p className="line-clamp-3 text-muted-foreground text-xs bg-amber-50 p-2 rounded border border-amber-100">{r.reflexion}</p>
-                          ) : <span className="text-muted-foreground/50 italic text-xs">- No registró -</span>}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="ghost" size="icon" onClick={() => setViewingRecord(r)} className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" title="Ver registro completo">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <p className="whitespace-pre-wrap">{r.conducta}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {r.reflexion && (
+                      <div className="mt-4 pt-4 border-t border-border/40">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground mb-2">
+                          <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs">💡</span>
+                          Reflexión / Pensamiento alternativo
+                        </div>
+                        <p className="text-sm text-muted-foreground italic bg-amber-50 p-3 rounded-xl border border-amber-100 whitespace-pre-wrap leading-relaxed">"{r.reflexion}"</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </TabsContent>
@@ -335,55 +346,6 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* RECORD DETAIL DIALOG */}
-      <Dialog open={!!viewingRecord} onOpenChange={(open) => !open && setViewingRecord(null)}>
-        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl">Detalle del Registro ABC</DialogTitle>
-            {viewingRecord && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1.5 pt-1">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>{viewingRecord.userName}</span>
-                <span className="mx-1">·</span>
-                <span>{format(new Date(viewingRecord.createdAt), "dd 'de' MMMM yyyy, HH:mm", { locale: es })}</span>
-              </p>
-            )}
-          </DialogHeader>
-          {viewingRecord && (
-            <div className="space-y-5 mt-4">
-              <div className="rounded-xl border bg-secondary/30 p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">A — Situación</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{viewingRecord.situacion}</p>
-              </div>
-              <div className="rounded-xl border bg-secondary/30 p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">B — Pensamiento</p>
-                <p className="text-sm text-foreground leading-relaxed italic whitespace-pre-wrap">"{viewingRecord.pensamientos}"</p>
-              </div>
-              <div className="rounded-xl border bg-secondary/30 p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">C — Consecuencia</p>
-                <div className="flex gap-2 items-center mb-3">
-                  <span className="font-medium capitalize text-sm">{viewingRecord.emocion}</span>
-                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Intensidad: {viewingRecord.intensidad}/10</span>
-                </div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Conducta</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{viewingRecord.conducta}</p>
-              </div>
-              <div className="rounded-xl border bg-amber-50 border-amber-100 p-4">
-                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Reflexión</p>
-                {viewingRecord.reflexion ? (
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{viewingRecord.reflexion}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">El paciente no registró una reflexión.</p>
-                )}
-              </div>
-            </div>
-          )}
-          <DialogFooter className="pt-4 border-t mt-4">
-            <Button variant="outline" onClick={() => setViewingRecord(null)} className="rounded-xl">Cerrar</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
