@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/app/abc/"
 title = "ABC - Registro Emocional TCC"
 version = "1.0.0"
 id = "artifacts/abc-web"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/app/abc/" ]
 localPort = 25002
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "25002"
-BASE_PATH = "/"
+BASE_PATH = "/app/abc/"
