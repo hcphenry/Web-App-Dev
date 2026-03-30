@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, recordsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { CreateRecordBody, ListAllRecordsQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -58,7 +58,7 @@ router.get("/admin/records", requireAdmin, async (req, res) => {
     })
     .from(recordsTable)
     .innerJoin(usersTable, eq(recordsTable.userId, usersTable.id))
-    .orderBy(recordsTable.createdAt);
+    .orderBy(desc(recordsTable.createdAt));
 
   const filtered = filterUserId
     ? rows.filter((r) => r.userId === filterUserId)
