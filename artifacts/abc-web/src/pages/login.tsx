@@ -26,6 +26,7 @@ export default function Login() {
   // Redirect if already logged in
   useGetMe({
     query: {
+      queryKey: getGetMeQueryKey(),
       retry: false,
       refetchOnWindowFocus: false,
     },

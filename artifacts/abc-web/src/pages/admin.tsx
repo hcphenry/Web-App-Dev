@@ -112,7 +112,7 @@ export default function AdminDashboard() {
       if (!updateData.password) delete updateData.password;
       updateMut.mutate({ id: editingUser.id, data: updateData });
     } else {
-      if (!data.password) return toast({ variant: "destructive", title: "Contraseña requerida" });
+      if (!data.password) { toast({ variant: "destructive", title: "Contraseña requerida" }); return; }
       createMut.mutate({ data: data as any });
     }
   };

@@ -53,9 +53,9 @@ export default function RegisterAbc() {
   };
 
   const nextStep = () => {
-    if (step === 1 && !formData.situacion) return toast({ variant: "destructive", title: "Completa el campo", description: "Describe la situación para continuar." });
-    if (step === 2 && !formData.pensamientos) return toast({ variant: "destructive", title: "Completa el campo", description: "Escribe tus pensamientos para continuar." });
-    if (step === 3 && (!formData.emocion || !formData.conducta)) return toast({ variant: "destructive", title: "Completa los campos", description: "Indica tu emoción y conducta para continuar." });
+    if (step === 1 && !formData.situacion) { toast({ variant: "destructive", title: "Completa el campo", description: "Describe la situación para continuar." }); return; }
+    if (step === 2 && !formData.pensamientos) { toast({ variant: "destructive", title: "Completa el campo", description: "Escribe tus pensamientos para continuar." }); return; }
+    if (step === 3 && (!formData.emocion || !formData.conducta)) { toast({ variant: "destructive", title: "Completa los campos", description: "Indica tu emoción y conducta para continuar." }); return; }
     
     setStep(s => s + 1);
   };

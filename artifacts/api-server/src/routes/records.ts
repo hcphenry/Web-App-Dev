@@ -74,7 +74,7 @@ router.get("/admin/records", requireAdmin, async (req, res) => {
 });
 
 router.get("/records", requireAuth, async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.session.userId!;
 
   const rows = await db
     .select({
@@ -104,7 +104,7 @@ router.get("/records", requireAuth, async (req, res) => {
 });
 
 router.post("/records", requireAuth, async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.session.userId!;
 
   const parsed = CreateRecordBody.safeParse(req.body);
   if (!parsed.success) {

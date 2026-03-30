@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const { data: user } = useGetMe({ query: { retry: false } });
+  const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
   
   const logoutMut = useLogout({
     mutation: {

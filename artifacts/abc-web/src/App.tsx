@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 
@@ -18,7 +18,7 @@ const queryClient = new QueryClient();
 function ProtectedRoute({ component: Component, requireRole }: { component: any, requireRole?: 'admin' | 'user' }) {
   const [location, setLocation] = useLocation();
   const { data: user, isLoading, error } = useGetMe({ 
-    query: { retry: false, refetchOnWindowFocus: false },
+    query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: false },
     request: { headers: { "Accept": "application/json" } } 
   });
 
@@ -51,7 +51,7 @@ function ProtectedRoute({ component: Component, requireRole }: { component: any,
 // Redirect root based on auth status
 function RootRouter() {
   const [location, setLocation] = useLocation();
-  const { data: user, isLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
 
   useEffect(() => {
     if (!isLoading && location === '/') {
