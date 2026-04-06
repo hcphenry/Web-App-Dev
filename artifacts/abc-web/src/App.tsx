@@ -11,11 +11,18 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import RegisterAbc from "@/pages/register-abc";
 import AdminDashboard from "@/pages/admin";
+import PsicologoDashboard from "@/pages/psicologo";
 
 const queryClient = new QueryClient();
 
+function getRoleHome(role: string) {
+  if (role === "admin") return "/admin";
+  if (role === "psicologo") return "/psicologo";
+  return "/register-abc";
+}
+
 // Auth Guard Component
-function ProtectedRoute({ component: Component, requireRole }: { component: any, requireRole?: 'admin' | 'user' }) {
+function ProtectedRoute({ component: Component, requireRole }: { component: any, requireRole?: 'admin' | 'user' | 'psicologo' }) {
   const [location, setLocation] = useLocation();
   const { data: user, isLoading, error } = useGetMe({ 
     query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: false },
@@ -27,8 +34,7 @@ function ProtectedRoute({ component: Component, requireRole }: { component: any,
       if (error || !user) {
         setLocation("/login");
       } else if (requireRole && user.role !== requireRole) {
-        // Redirect to appropriate landing if wrong role
-        setLocation(user.role === 'admin' ? '/admin' : '/register-abc');
+        setLocation(getRoleHome(user.role));
       }
     }
   }, [user, isLoading, error, location, setLocation, requireRole]);
@@ -56,7 +62,7 @@ function RootRouter() {
   useEffect(() => {
     if (!isLoading && location === '/') {
       if (user) {
-        setLocation(user.role === 'admin' ? '/admin' : '/register-abc');
+        setLocation(getRoleHome(user.role));
       } else {
         setLocation('/login');
       }
@@ -85,6 +91,9 @@ function Router() {
         </Route>
         <Route path="/admin">
           {() => <ProtectedRoute component={AdminDashboard} requireRole="admin" />}
+        </Route>
+        <Route path="/psicologo">
+          {() => <ProtectedRoute component={PsicologoDashboard} requireRole="psicologo" />}
         </Route>
         <Route component={NotFound} />
       </Switch>

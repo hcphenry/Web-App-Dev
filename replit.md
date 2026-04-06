@@ -46,20 +46,40 @@ artifacts-monorepo/
 - View past records
 
 ### Admin View
-- Dashboard at `/admin`
-- User management (create, edit, delete, change password)
+- Dashboard at `/admin` (4 tabs)
+- **Usuarios**: User management (create, edit, delete, change password)
+- **Registros**: View all ABC records filtered by user (card-based layout)
+- **Psicólogos**: Manage psychologists (CRUD with professional profile data)
+- **Mi Cuenta**: Admin can change their own email/password
 - Password suggestion tool
-- View all ABC records filtered by user
+
+### Psychologist View
+- Dedicated portal at `/psicologo`
+- **Mi Perfil**: View professional profile info
+- **Disponibilidad**: Manage availability slots (create, edit, delete time slots)
+- **Mi Cuenta**: Change email/password
+
+### Patient View
+- ABC registration form at `/register-abc`
+- 3 views: form, history, account (change email/password)
 
 ## Database Schema
 
-- **users**: id, name, email, password_hash, role (admin|user), created_at
+- **users**: id, name, email, password_hash, role (admin|user|psicologo), created_at
 - **records**: id, user_id, situacion, pensamientos, emocion, intensidad, conducta, reflexion, created_at
+- **psychologist_profiles**: id, user_id, date_of_birth, profession, registration_date, deregistration_date, commission_percentage, license_number
+- **availability_slots**: id, psychologist_id, start_time, end_time, is_available, notes, created_at
 
 ## Default Admin Credentials
 
 - Email: `admin@abc.com`
-- Password: `Admin2024!`
+- Password: (set during initial setup via seed script)
+
+## Roles
+
+- `admin` → redirected to `/admin`
+- `user` → redirected to `/register-abc`
+- `psicologo` → redirected to `/psicologo`
 
 ## API Routes
 
@@ -67,14 +87,26 @@ All routes under `/api`:
 - `POST /auth/login` — Login
 - `POST /auth/logout` — Logout
 - `GET /auth/me` — Current user info
+- `PUT /auth/me/email` — Update own email
+- `PUT /auth/me/password` — Update own password
 - `GET /admin/users` — List users (admin only)
 - `POST /admin/users` — Create user (admin only)
 - `PUT /admin/users/:id` — Update user (admin only)
 - `DELETE /admin/users/:id` — Delete user (admin only)
 - `GET /admin/suggest-password` — Suggest strong password (admin only)
 - `GET /admin/records` — All ABC records (admin only, filterable by userId)
+- `GET /admin/psychologists` — List psychologists (admin only)
+- `POST /admin/psychologists` — Create psychologist (admin only)
+- `PUT /admin/psychologists/:id` — Update psychologist (admin only)
+- `DELETE /admin/psychologists/:id` — Delete psychologist (admin only)
+- `GET /admin/psychologists/:id/availability` — View psychologist slots (admin only)
 - `GET /records` — Current user's records
 - `POST /records` — Create ABC record
+- `GET /psicologo/profile` — Psychologist's own profile
+- `GET /psicologo/availability` — Psychologist's availability slots
+- `POST /psicologo/availability` — Create availability slot
+- `PUT /psicologo/availability/:id` — Update slot
+- `DELETE /psicologo/availability/:id` — Delete slot
 
 ## TypeScript & Composite Projects
 

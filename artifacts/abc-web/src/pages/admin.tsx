@@ -22,8 +22,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle 
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { 
-  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle
+  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit
 } from "lucide-react";
 
 // --- Schemas ---
@@ -33,6 +34,26 @@ const userSchema = z.object({
   password: z.string().min(6, "Mínimo 6 caracteres").optional().or(z.literal('')),
   role: z.enum(["admin", "user"])
 });
+
+const psicologoSchema = z.object({
+  name: z.string().min(2, "Nombre requerido"),
+  email: z.string().email("Correo inválido"),
+  password: z.string().min(6, "Mínimo 6 caracteres").optional().or(z.literal('')),
+  dateOfBirth: z.string().optional(),
+  profession: z.string().optional(),
+  registrationDate: z.string().optional(),
+  deregistrationDate: z.string().optional(),
+  commissionPercentage: z.string().optional(),
+  licenseNumber: z.string().optional(),
+});
+
+interface Psicologo {
+  id: number; name: string; email: string; role: string; createdAt: string;
+  profileId?: number | null;
+  dateOfBirth?: string | null; profession?: string | null;
+  registrationDate?: string | null; deregistrationDate?: string | null;
+  commissionPercentage?: string | null; licenseNumber?: string | null;
+}
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -179,6 +200,76 @@ export default function AdminDashboard() {
     }
   };
 
+  // ─── PSICÓLOGOS ─────────────────────────────────────────────────────────
+  const psicologoForm = useForm<z.infer<typeof psicologoSchema>>({
+    resolver: zodResolver(psicologoSchema),
+    defaultValues: { name: "", email: "", password: "", dateOfBirth: "", profession: "", registrationDate: "", deregistrationDate: "", commissionPercentage: "", licenseNumber: "" }
+  });
+
+  const [psicologoModalOpen, setPsicologoModalOpen] = useState(false);
+  const [editingPsicologo, setEditingPsicologo] = useState<Psicologo | null>(null);
+  const [deletingPsicologo, setDeletingPsicologo] = useState<Psicologo | null>(null);
+
+  const { data: psicologos = [], isLoading: loadingPsicologos } = useQuery<Psicologo[]>({
+    queryKey: ["admin-psicologos"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/psychologists");
+      if (!res.ok) throw new Error("Error al cargar psicólogos");
+      return res.json();
+    },
+  });
+
+  const createPsicologoMut = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/admin/psychologists", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al crear psicólogo");
+      return json;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-psicologos"] }); toast({ title: "Psicólogo creado" }); setPsicologoModalOpen(false); psicologoForm.reset(); },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const updatePsicologoMut = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await fetch(`/api/admin/psychologists/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al actualizar");
+      return json;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-psicologos"] }); toast({ title: "Psicólogo actualizado" }); setPsicologoModalOpen(false); setEditingPsicologo(null); psicologoForm.reset(); },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const deletePsicologoMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/admin/psychologists/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-psicologos"] }); toast({ title: "Psicólogo eliminado" }); setDeletingPsicologo(null); },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const openCreatePsicologo = () => {
+    setEditingPsicologo(null);
+    psicologoForm.reset({ name: "", email: "", password: "", dateOfBirth: "", profession: "", registrationDate: "", deregistrationDate: "", commissionPercentage: "", licenseNumber: "" });
+    setPsicologoModalOpen(true);
+  };
+
+  const openEditPsicologo = (p: Psicologo) => {
+    setEditingPsicologo(p);
+    psicologoForm.reset({ name: p.name, email: p.email, password: "", dateOfBirth: p.dateOfBirth || "", profession: p.profession || "", registrationDate: p.registrationDate || "", deregistrationDate: p.deregistrationDate || "", commissionPercentage: p.commissionPercentage || "", licenseNumber: p.licenseNumber || "" });
+    setPsicologoModalOpen(true);
+  };
+
+  const onPsicologoSubmit = (data: z.infer<typeof psicologoSchema>) => {
+    if (editingPsicologo) {
+      updatePsicologoMut.mutate({ id: editingPsicologo.id, data });
+    } else {
+      createPsicologoMut.mutate(data);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -190,12 +281,15 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full max-w-xl grid-cols-3 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="users" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Users className="w-4 h-4 mr-2" /> Usuarios
             </TabsTrigger>
             <TabsTrigger value="records" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Database className="w-4 h-4 mr-2" /> Registros
+            </TabsTrigger>
+            <TabsTrigger value="psicologos" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <BrainCircuit className="w-4 h-4 mr-2" /> Psicólogos
             </TabsTrigger>
             <TabsTrigger value="account" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
@@ -344,6 +438,62 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* PSICÓLOGOS TAB */}
+          <TabsContent value="psicologos" className="mt-6">
+            <div className="glass-panel rounded-[2rem] overflow-hidden shadow-lg border">
+              <div className="p-6 flex justify-between items-center border-b border-border/50 bg-white/40">
+                <div>
+                  <h2 className="text-xl font-display font-semibold">Gestión de Psicólogos</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Registra y administra los psicólogos del sistema.</p>
+                </div>
+                <Button onClick={openCreatePsicologo} className="rounded-full shadow-md shadow-primary/20">
+                  <Plus className="w-4 h-4 mr-2" /> Agregar Psicólogo
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
+                    <tr>
+                      <th className="px-6 py-4 font-semibold">Nombre</th>
+                      <th className="px-6 py-4 font-semibold">Email</th>
+                      <th className="px-6 py-4 font-semibold">Colegiatura</th>
+                      <th className="px-6 py-4 font-semibold">Profesión</th>
+                      <th className="px-6 py-4 font-semibold">Alta</th>
+                      <th className="px-6 py-4 font-semibold">Comisión</th>
+                      <th className="px-6 py-4 font-semibold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingPsicologos ? (
+                      <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Cargando psicólogos...</td></tr>
+                    ) : psicologos.length === 0 ? (
+                      <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No hay psicólogos registrados.</td></tr>
+                    ) : psicologos.map(p => (
+                      <tr key={p.id} className="border-t border-border/30 hover:bg-secondary/20 transition-colors">
+                        <td className="px-6 py-4 font-medium">{p.name}</td>
+                        <td className="px-6 py-4 text-muted-foreground">{p.email}</td>
+                        <td className="px-6 py-4">{p.licenseNumber || <span className="text-muted-foreground/50 text-xs italic">—</span>}</td>
+                        <td className="px-6 py-4">{p.profession || <span className="text-muted-foreground/50 text-xs italic">—</span>}</td>
+                        <td className="px-6 py-4 text-xs">{p.registrationDate || <span className="text-muted-foreground/50 italic">—</span>}</td>
+                        <td className="px-6 py-4">{p.commissionPercentage ? `${p.commissionPercentage}%` : <span className="text-muted-foreground/50 text-xs italic">—</span>}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-primary border-primary/20" onClick={() => openEditPsicologo(p)}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-destructive border-destructive/20" onClick={() => setDeletingPsicologo(p)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </TabsContent>
@@ -524,6 +674,89 @@ export default function AdminDashboard() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
               onClick={() => userToDelete && deleteMut.mutate({ id: userToDelete.id })}
             >
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* CREATE/EDIT PSYCHOLOGIST DIALOG */}
+      <Dialog open={psicologoModalOpen} onOpenChange={open => { setPsicologoModalOpen(open); if (!open) setEditingPsicologo(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">{editingPsicologo ? "Editar Psicólogo" : "Registrar Nuevo Psicólogo"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={psicologoForm.handleSubmit(onPsicologoSubmit)} className="space-y-4 mt-2">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre Completo *</Label>
+                <Input {...psicologoForm.register("name")} className="rounded-xl bg-secondary/30" placeholder="Dr. Nombre Apellido" />
+                {psicologoForm.formState.errors.name && <p className="text-xs text-destructive">{psicologoForm.formState.errors.name.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Correo Electrónico *</Label>
+                <Input type="email" {...psicologoForm.register("email")} className="rounded-xl bg-secondary/30" placeholder="correo@ejemplo.com" />
+                {psicologoForm.formState.errors.email && <p className="text-xs text-destructive">{psicologoForm.formState.errors.email.message}</p>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{editingPsicologo ? "Contraseña (Dejar en blanco para no cambiar)" : "Contraseña *"}</Label>
+              <Input type="text" {...psicologoForm.register("password")} className="rounded-xl bg-secondary/30 font-mono" placeholder="Mínimo 6 caracteres" />
+              {psicologoForm.formState.errors.password && <p className="text-xs text-destructive">{psicologoForm.formState.errors.password.message}</p>}
+            </div>
+            <div className="border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Información Profesional</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Profesión</Label>
+                  <Input {...psicologoForm.register("profession")} className="rounded-xl bg-secondary/30" placeholder="Psicólogo Clínico" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Número de Colegiatura</Label>
+                  <Input {...psicologoForm.register("licenseNumber")} className="rounded-xl bg-secondary/30" placeholder="PSI-12345" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de Nacimiento</Label>
+                  <Input type="date" {...psicologoForm.register("dateOfBirth")} className="rounded-xl bg-secondary/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label>% de Comisión</Label>
+                  <Input type="number" step="0.01" min="0" max="100" {...psicologoForm.register("commissionPercentage")} className="rounded-xl bg-secondary/30" placeholder="0.00" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de Alta</Label>
+                  <Input type="date" {...psicologoForm.register("registrationDate")} className="rounded-xl bg-secondary/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de Baja (si aplica)</Label>
+                  <Input type="date" {...psicologoForm.register("deregistrationDate")} className="rounded-xl bg-secondary/30" />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setPsicologoModalOpen(false)} className="rounded-xl">Cancelar</Button>
+              <Button type="submit" disabled={createPsicologoMut.isPending || updatePsicologoMut.isPending} className="rounded-xl">
+                {(createPsicologoMut.isPending || updatePsicologoMut.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingPsicologo ? "Guardar Cambios" : "Registrar Psicólogo"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DELETE PSYCHOLOGIST CONFIRMATION */}
+      <AlertDialog open={!!deletingPsicologo} onOpenChange={open => !open && setDeletingPsicologo(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar psicólogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esto eliminará la cuenta de <strong>{deletingPsicologo?.name}</strong> y todos sus datos. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
+              onClick={() => deletingPsicologo && deletePsicologoMut.mutate(deletingPsicologo.id)}>
               Sí, eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
