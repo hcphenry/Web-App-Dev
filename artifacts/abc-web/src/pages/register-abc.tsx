@@ -5,7 +5,9 @@ import { es } from "date-fns/locale";
 import { 
   useCreateRecord, 
   useListMyRecords, 
+  useGetMe,
   getListMyRecordsQueryKey,
+  getGetMeQueryKey,
   type CreateRecordRequest 
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,12 +21,12 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, ArrowLeft, CheckCircle2, MessageCircle, 
-  BrainCircuit, Activity, Lightbulb, History, FileText
+  BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2
 } from "lucide-react";
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [showHistory, setShowHistory] = useState(false);
+  const [view, setView] = useState<'form' | 'history' | 'account'>('form');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -33,7 +35,14 @@ export default function RegisterAbc() {
   });
   const [wantsReflection, setWantsReflection] = useState(false);
 
+  // Account forms state
+  const [emailForm, setEmailForm] = useState({ email: '', currentPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
   const { data: records, isLoading: loadingRecords } = useListMyRecords();
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   
   const createMut = useCreateRecord({
     mutation: {
@@ -41,7 +50,7 @@ export default function RegisterAbc() {
         queryClient.invalidateQueries({ queryKey: getListMyRecordsQueryKey() });
         toast({ title: "¡Excelente!", description: "Tu registro ABC ha sido guardado exitosamente." });
         resetForm();
-        setShowHistory(true);
+        setView('history');
       }
     }
   });
@@ -50,6 +59,53 @@ export default function RegisterAbc() {
     setFormData({ intensidad: 5 });
     setWantsReflection(false);
     setStep(1);
+  };
+
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailForm.email || !emailForm.currentPassword) return;
+    setSavingEmail(true);
+    try {
+      const res = await fetch('/api/auth/me/email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar');
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      toast({ title: "Correo actualizado", description: data.message });
+      setEmailForm({ email: '', currentPassword: '' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) return;
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Las contraseñas nuevas no coinciden' });
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch('/api/auth/me/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar');
+      toast({ title: "Contraseña actualizada", description: data.message });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   const nextStep = () => {
@@ -81,21 +137,37 @@ export default function RegisterAbc() {
       <Navbar />
       
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Registro ABC</h1>
             <p className="text-muted-foreground mt-1">Identifica y gestiona tus reacciones emocionales</p>
           </div>
-          <Button 
-            variant={showHistory ? "default" : "outline"}
-            onClick={() => setShowHistory(!showHistory)}
-            className="rounded-full shadow-sm"
-          >
-            {showHistory ? <><FileText className="w-4 h-4 mr-2" /> Nuevo Registro</> : <><History className="w-4 h-4 mr-2" /> Historial</>}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant={view === 'form' ? "default" : "outline"}
+              onClick={() => setView('form')}
+              className="rounded-full shadow-sm"
+            >
+              <FileText className="w-4 h-4 mr-2" /> Nuevo Registro
+            </Button>
+            <Button
+              variant={view === 'history' ? "default" : "outline"}
+              onClick={() => setView('history')}
+              className="rounded-full shadow-sm"
+            >
+              <History className="w-4 h-4 mr-2" /> Historial
+            </Button>
+            <Button
+              variant={view === 'account' ? "default" : "outline"}
+              onClick={() => setView('account')}
+              className="rounded-full shadow-sm"
+            >
+              <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
+            </Button>
+          </div>
         </div>
 
-        {showHistory ? (
+        {view === 'history' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {loadingRecords ? (
               <div className="text-center py-12 text-muted-foreground">Cargando registros...</div>
@@ -106,7 +178,7 @@ export default function RegisterAbc() {
                 </div>
                 <h3 className="text-xl font-display font-semibold">No hay registros aún</h3>
                 <p className="text-muted-foreground mt-2 max-w-md mx-auto">Comienza a registrar tus situaciones para entender mejor tus patrones emocionales y conductuales.</p>
-                <Button onClick={() => setShowHistory(false)} className="mt-6 rounded-full">Crear mi primer registro</Button>
+                <Button onClick={() => setView('form')} className="mt-6 rounded-full">Crear mi primer registro</Button>
               </div>
             ) : (
               <div className="grid gap-6">
@@ -161,7 +233,112 @@ export default function RegisterAbc() {
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {view === 'account' && (
+          <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="glass-panel p-6 rounded-2xl border">
+              <div className="flex items-center gap-3 mb-1">
+                <UserCircle className="w-8 h-8 text-primary" />
+                <div>
+                  <h2 className="text-xl font-display font-semibold">Mi Cuenta</h2>
+                  <p className="text-sm text-muted-foreground">Correo actual: <span className="font-medium text-foreground">{me?.email}</span></p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cambiar correo */}
+            <div className="glass-panel p-6 rounded-2xl border">
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm">@</span>
+                Cambiar correo electrónico
+              </h3>
+              <form onSubmit={handleEmailChange} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-email">Nuevo correo electrónico</Label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    placeholder="nuevo@correo.com"
+                    className="rounded-xl bg-white/50"
+                    value={emailForm.email}
+                    onChange={e => setEmailForm(f => ({ ...f, email: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email-current-pass">Contraseña actual (para confirmar)</Label>
+                  <Input
+                    id="email-current-pass"
+                    type="password"
+                    placeholder="Tu contraseña actual"
+                    className="rounded-xl bg-white/50"
+                    value={emailForm.currentPassword}
+                    onChange={e => setEmailForm(f => ({ ...f, currentPassword: e.target.value }))}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={savingEmail} className="rounded-xl w-full">
+                  {savingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Actualizar correo
+                </Button>
+              </form>
+            </div>
+
+            {/* Cambiar contraseña */}
+            <div className="glass-panel p-6 rounded-2xl border">
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm">🔒</span>
+                Cambiar contraseña
+              </h3>
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="curr-pass">Contraseña actual</Label>
+                  <Input
+                    id="curr-pass"
+                    type="password"
+                    placeholder="Tu contraseña actual"
+                    className="rounded-xl bg-white/50"
+                    value={passwordForm.currentPassword}
+                    onChange={e => setPasswordForm(f => ({ ...f, currentPassword: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-pass">Nueva contraseña</Label>
+                  <Input
+                    id="new-pass"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    className="rounded-xl bg-white/50"
+                    value={passwordForm.newPassword}
+                    onChange={e => setPasswordForm(f => ({ ...f, newPassword: e.target.value }))}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-pass">Confirmar nueva contraseña</Label>
+                  <Input
+                    id="confirm-pass"
+                    type="password"
+                    placeholder="Repite la nueva contraseña"
+                    className="rounded-xl bg-white/50"
+                    value={passwordForm.confirmPassword}
+                    onChange={e => setPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={savingPassword} className="rounded-xl w-full">
+                  {savingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Actualizar contraseña
+                </Button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {view === 'form' && (
           <div className="max-w-2xl mx-auto">
             {/* Progress Stepper */}
             <div className="mb-10">

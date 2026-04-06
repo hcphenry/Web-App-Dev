@@ -50,6 +50,82 @@ router.post("/logout", (req, res) => {
   });
 });
 
+router.put("/me/email", async (req, res) => {
+  const userId = (req as any).session?.userId;
+  if (!userId) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+
+  const { email, currentPassword } = req.body;
+  if (!email || !currentPassword) {
+    res.status(400).json({ error: "Se requiere el nuevo correo y la contraseña actual" });
+    return;
+  }
+
+  const users = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const user = users[0];
+  if (!user) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Contraseña actual incorrecta" });
+    return;
+  }
+
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  if (existing.length > 0 && existing[0].id !== userId) {
+    res.status(400).json({ error: "Ese correo ya está en uso por otra cuenta" });
+    return;
+  }
+
+  const [updated] = await db.update(usersTable)
+    .set({ email })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  res.json({ message: "Correo actualizado correctamente", email: updated.email });
+});
+
+router.put("/me/password", async (req, res) => {
+  const userId = (req as any).session?.userId;
+  if (!userId) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "Se requiere la contraseña actual y la nueva" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres" });
+    return;
+  }
+
+  const users = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const user = users[0];
+  if (!user) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Contraseña actual incorrecta" });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+
+  res.json({ message: "Contraseña actualizada correctamente" });
+});
+
 router.get("/me", async (req, res) => {
   const userId = (req as any).session?.userId;
   if (!userId) {

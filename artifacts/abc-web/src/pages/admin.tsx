@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { 
   useListUsers, useListAllRecords, useCreateUser, useUpdateUser, useDeleteUser,
-  getListUsersQueryKey, getListAllRecordsQueryKey, type User
+  useGetMe, getListUsersQueryKey, getListAllRecordsQueryKey, getGetMeQueryKey, type User
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search
+  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle
 } from "lucide-react";
 
 // --- Schemas ---
@@ -46,10 +46,18 @@ export default function AdminDashboard() {
     selectedUserId !== "all" ? { userId: parseInt(selectedUserId) } : undefined
   );
 
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+
   // State
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // Account change state
+  const [emailForm, setEmailForm] = useState({ email: '', currentPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   // Form
   const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<z.infer<typeof userSchema>>({
@@ -115,6 +123,51 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingEmail(true);
+    try {
+      const res = await fetch('/api/auth/me/email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar');
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      toast({ title: "Correo actualizado", description: data.message });
+      setEmailForm({ email: '', currentPassword: '' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Las contraseñas nuevas no coinciden' });
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch('/api/auth/me/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar');
+      toast({ title: "Contraseña actualizada", description: data.message });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   const handleSuggestPassword = async () => {
     try {
       const res = await fetch('/api/admin/suggest-password');
@@ -137,12 +190,15 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-xl grid-cols-3 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="users" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Users className="w-4 h-4 mr-2" /> Usuarios
             </TabsTrigger>
             <TabsTrigger value="records" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <Database className="w-4 h-4 mr-2" /> Registros Globales
+              <Database className="w-4 h-4 mr-2" /> Registros
+            </TabsTrigger>
+            <TabsTrigger value="account" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
             </TabsTrigger>
           </TabsList>
 
@@ -288,6 +344,110 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* MI CUENTA TAB */}
+          <TabsContent value="account" className="mt-6">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div className="glass-panel p-6 rounded-2xl border">
+                <div className="flex items-center gap-3">
+                  <UserCircle className="w-8 h-8 text-primary" />
+                  <div>
+                    <h2 className="text-xl font-display font-semibold">Mi Cuenta</h2>
+                    <p className="text-sm text-muted-foreground">Correo actual: <span className="font-medium text-foreground">{me?.email}</span></p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cambiar correo */}
+              <div className="glass-panel p-6 rounded-2xl border">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm">@</span>
+                  Cambiar correo electrónico
+                </h3>
+                <form onSubmit={handleEmailChange} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-new-email">Nuevo correo electrónico</Label>
+                    <Input
+                      id="admin-new-email"
+                      type="email"
+                      placeholder="nuevo@correo.com"
+                      className="rounded-xl bg-white/50"
+                      value={emailForm.email}
+                      onChange={e => setEmailForm(f => ({ ...f, email: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email-curr-pass">Contraseña actual (para confirmar)</Label>
+                    <Input
+                      id="admin-email-curr-pass"
+                      type="password"
+                      placeholder="Tu contraseña actual"
+                      className="rounded-xl bg-white/50"
+                      value={emailForm.currentPassword}
+                      onChange={e => setEmailForm(f => ({ ...f, currentPassword: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" disabled={savingEmail} className="rounded-xl w-full">
+                    {savingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Actualizar correo
+                  </Button>
+                </form>
+              </div>
+
+              {/* Cambiar contraseña */}
+              <div className="glass-panel p-6 rounded-2xl border">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm">🔒</span>
+                  Cambiar contraseña
+                </h3>
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-curr-pass">Contraseña actual</Label>
+                    <Input
+                      id="admin-curr-pass"
+                      type="password"
+                      placeholder="Tu contraseña actual"
+                      className="rounded-xl bg-white/50"
+                      value={passwordForm.currentPassword}
+                      onChange={e => setPasswordForm(f => ({ ...f, currentPassword: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-new-pass">Nueva contraseña</Label>
+                    <Input
+                      id="admin-new-pass"
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      className="rounded-xl bg-white/50"
+                      value={passwordForm.newPassword}
+                      onChange={e => setPasswordForm(f => ({ ...f, newPassword: e.target.value }))}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-confirm-pass">Confirmar nueva contraseña</Label>
+                    <Input
+                      id="admin-confirm-pass"
+                      type="password"
+                      placeholder="Repite la nueva contraseña"
+                      className="rounded-xl bg-white/50"
+                      value={passwordForm.confirmPassword}
+                      onChange={e => setPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" disabled={savingPassword} className="rounded-xl w-full">
+                    {savingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Actualizar contraseña
+                  </Button>
+                </form>
               </div>
             </div>
           </TabsContent>
