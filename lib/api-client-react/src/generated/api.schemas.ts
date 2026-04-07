@@ -27,6 +27,7 @@ export type UserInfoRole = (typeof UserInfoRole)[keyof typeof UserInfoRole];
 export const UserInfoRole = {
   admin: "admin",
   user: "user",
+  psicologo: "psicologo",
 } as const;
 
 export interface UserInfo {
@@ -45,6 +46,7 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 export const UserRole = {
   admin: "admin",
   user: "user",
+  psicologo: "psicologo",
 } as const;
 
 export interface User {
@@ -61,6 +63,7 @@ export type CreateUserRequestRole =
 export const CreateUserRequestRole = {
   admin: "admin",
   user: "user",
+  psicologo: "psicologo",
 } as const;
 
 export interface CreateUserRequest {
@@ -76,6 +79,7 @@ export type UpdateUserRequestRole =
 export const UpdateUserRequestRole = {
   admin: "admin",
   user: "user",
+  psicologo: "psicologo",
 } as const;
 
 export interface UpdateUserRequest {

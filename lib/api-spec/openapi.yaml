@@ -327,7 +327,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, user]
+          enum: [admin, user, psicologo]
       required:
         - id
         - name
@@ -345,7 +345,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, user]
+          enum: [admin, user, psicologo]
         createdAt:
           type: string
           format: date-time
@@ -368,7 +368,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, user]
+          enum: [admin, user, psicologo]
           default: user
       required:
         - name
@@ -387,7 +387,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, user]
+          enum: [admin, user, psicologo]
 
     AbcRecord:
       type: object

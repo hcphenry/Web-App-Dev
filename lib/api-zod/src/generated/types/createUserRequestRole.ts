@@ -12,4 +12,5 @@ export type CreateUserRequestRole =
 export const CreateUserRequestRole = {
   admin: "admin",
   user: "user",
+  psicologo: "psicologo",
 } as const;
