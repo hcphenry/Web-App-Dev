@@ -56,6 +56,31 @@ export async function runMigrations() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reclamaciones (
+        id               SERIAL PRIMARY KEY,
+        correlativo      TEXT NOT NULL,
+        fecha            TEXT NOT NULL,
+        tipo_reclamo     TEXT NOT NULL,
+        tipo_item        TEXT NOT NULL,
+        nombres          TEXT NOT NULL,
+        dni              TEXT NOT NULL,
+        domicilio        TEXT NOT NULL,
+        telefono         TEXT NOT NULL,
+        email            TEXT NOT NULL,
+        es_menor         BOOLEAN DEFAULT FALSE,
+        rep_nombres      TEXT,
+        rep_dni          TEXT,
+        rep_vinculo      TEXT,
+        monto            NUMERIC,
+        descripcion_bien TEXT NOT NULL,
+        detalle          TEXT NOT NULL,
+        pedido           TEXT NOT NULL,
+        email_enviado    BOOLEAN DEFAULT FALSE,
+        creado_en        TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     await client.query("COMMIT");
 
     console.log("[migrate] ✓ Schema migrations applied successfully");
