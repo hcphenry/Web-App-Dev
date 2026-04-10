@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GSXrMk1nK6Ax5v-Epp8bl"
+uri = "file://screenshots/db-architecture.jpg"
+type = "image"
+title = "Arquitectura de Datos — ABC Positivamente"

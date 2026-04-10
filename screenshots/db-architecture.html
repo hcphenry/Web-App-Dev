@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f172a;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+  }
+  .diagram {
+    position: relative;
+    width: 1100px;
+  }
+  h1 {
+    text-align: center;
+    color: #e2e8f0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 40px;
+  }
+  svg {
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* TABLE CARDS */
+  .tbl { filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5)); }
+
+  .tbl-header {
+    rx: 8; ry: 8;
+  }
+
+  text {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  .badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<div class="diagram">
+  <h1>Arquitectura de Datos — ABC Positivamente</h1>
+  <p class="subtitle">PostgreSQL · 5 tablas · 3 relaciones foráneas</p>
+
+  <svg width="1100" height="820" viewBox="0 0 1100 820">
+    <defs>
+      <!-- Arrow marker -->
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+      </marker>
+      <marker id="arrow-teal" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#14b8a6"/>
+      </marker>
+      <!-- Glow filter -->
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- RELATION LINES                  -->
+    <!-- ═══════════════════════════════ -->
+
+    <!-- records.user_id → users.id -->
+    <line x1="295" y1="175" x2="380" y2="175" stroke="#6366f1" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow)"/>
+    <text x="310" y="167" fill="#6366f1" font-size="10" font-weight="600">FK</text>
+
+    <!-- psychologist_profiles.user_id → users.id -->
+    <line x1="700" y1="175" x2="615" y2="175" stroke="#6366f1" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow)"/>
+    <text x="708" y="167" fill="#6366f1" font-size="10" font-weight="600">FK</text>
+
+    <!-- availability_slots.psychologist_id → users.id -->
+    <path d="M 700 530 Q 650 530 650 350 Q 650 260 615 230" stroke="#14b8a6" stroke-width="2" stroke-dasharray="6,3" fill="none" marker-end="url(#arrow-teal)"/>
+    <text x="655" y="420" fill="#14b8a6" font-size="10" font-weight="600">FK</text>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- TABLE: users (center)           -->
+    <!-- ═══════════════════════════════ -->
+    <g class="tbl" transform="translate(380, 80)">
+      <!-- Header -->
+      <rect width="230" height="38" rx="8" ry="8" fill="#4f46e5"/>
+      <rect width="230" height="16" rx="0" ry="0" fill="#4f46e5" y="22"/>
+      <text x="12" y="25" fill="white" font-size="15" font-weight="700">users</text>
+      <rect x="170" y="10" width="50" height="18" rx="9" fill="rgba(255,255,255,0.2)"/>
+      <text x="178" y="23" fill="white" font-size="9" font-weight="700">CENTRAL</text>
+
+      <!-- Body -->
+      <rect y="38" width="230" height="195" rx="0" fill="#1e1b4b"/>
+      <rect y="213" width="230" height="20" rx="0" fill="#1e1b4b"/>
+      <rect y="213" width="230" height="20" rx="8" fill="#1e1b4b"/>
+
+      <!-- Rows -->
+      <!-- id PK -->
+      <rect y="38" width="230" height="32" fill="rgba(99,102,241,0.15)"/>
+      <text x="12" y="59" fill="#fbbf24" font-size="11" font-weight="700">🔑 id</text>
+      <text x="140" y="59" fill="#818cf8" font-size="11">serial · PK</text>
+
+      <line x1="0" y1="70" x2="230" y2="70" stroke="#312e81" stroke-width="1"/>
+      <text x="12" y="87" fill="#c7d2fe" font-size="11">name</text>
+      <text x="140" y="87" fill="#64748b" font-size="11">text · NOT NULL</text>
+
+      <line x1="0" y1="99" x2="230" y2="99" stroke="#312e81" stroke-width="1"/>
+      <text x="12" y="116" fill="#c7d2fe" font-size="11">email</text>
+      <text x="140" y="116" fill="#64748b" font-size="11">text · UNIQUE</text>
+
+      <line x1="0" y1="128" x2="230" y2="128" stroke="#312e81" stroke-width="1"/>
+      <text x="12" y="145" fill="#c7d2fe" font-size="11">password_hash</text>
+      <text x="140" y="145" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="157" x2="230" y2="157" stroke="#312e81" stroke-width="1"/>
+      <text x="12" y="174" fill="#c7d2fe" font-size="11">role</text>
+      <text x="140" y="174" fill="#a78bfa" font-size="10">ENUM(admin/user/</text>
+      <text x="140" y="186" fill="#a78bfa" font-size="10">psicologo)</text>
+
+      <line x1="0" y1="196" x2="230" y2="196" stroke="#312e81" stroke-width="1"/>
+      <text x="12" y="215" fill="#c7d2fe" font-size="11">created_at</text>
+      <text x="140" y="215" fill="#64748b" font-size="11">timestamp</text>
+
+      <!-- Footer rounded bottom -->
+      <rect y="225" width="230" height="8" rx="4" fill="#1e1b4b"/>
+    </g>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- TABLE: records (left)           -->
+    <!-- ═══════════════════════════════ -->
+    <g class="tbl" transform="translate(30, 80)">
+      <rect width="260" height="38" rx="8" ry="8" fill="#7c3aed"/>
+      <rect width="260" height="16" rx="0" ry="0" fill="#7c3aed" y="22"/>
+      <text x="12" y="25" fill="white" font-size="15" font-weight="700">records</text>
+      <rect x="180" y="10" width="68" height="18" rx="9" fill="rgba(255,255,255,0.2)"/>
+      <text x="187" y="23" fill="white" font-size="9" font-weight="700">REGISTROS ABC</text>
+
+      <rect y="38" width="260" height="255" rx="0" fill="#2e1065"/>
+      <rect y="270" width="260" height="23" rx="8" fill="#2e1065"/>
+
+      <rect y="38" width="260" height="32" fill="rgba(139,92,246,0.2)"/>
+      <text x="12" y="59" fill="#fbbf24" font-size="11" font-weight="700">🔑 id</text>
+      <text x="155" y="59" fill="#a78bfa" font-size="11">serial · PK</text>
+
+      <line x1="0" y1="70" x2="260" y2="70" stroke="#4c1d95" stroke-width="1"/>
+      <rect y="70" width="260" height="32" fill="rgba(99,102,241,0.1)"/>
+      <text x="12" y="91" fill="#fda4af" font-size="11" font-weight="600">🔗 user_id</text>
+      <text x="155" y="91" fill="#6366f1" font-size="11">int · FK → users</text>
+
+      <line x1="0" y1="102" x2="260" y2="102" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="122" fill="#c4b5fd" font-size="11">situacion</text>
+      <text x="155" y="122" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="134" x2="260" y2="134" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="154" fill="#c4b5fd" font-size="11">pensamientos</text>
+      <text x="155" y="154" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="166" x2="260" y2="166" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="186" fill="#c4b5fd" font-size="11">emocion</text>
+      <text x="155" y="186" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="198" x2="260" y2="198" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="218" fill="#c4b5fd" font-size="11">intensidad</text>
+      <text x="155" y="218" fill="#64748b" font-size="11">integer (1–10)</text>
+
+      <line x1="0" y1="230" x2="260" y2="230" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="250" fill="#c4b5fd" font-size="11">conducta</text>
+      <text x="155" y="250" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="262" x2="260" y2="262" stroke="#4c1d95" stroke-width="1"/>
+      <text x="12" y="282" fill="#94a3b8" font-size="11" font-style="italic">reflexion</text>
+      <text x="155" y="282" fill="#475569" font-size="11">text · nullable</text>
+
+      <rect y="293" width="260" height="0" rx="4" fill="#2e1065"/>
+    </g>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- TABLE: psychologist_profiles    -->
+    <!-- ═══════════════════════════════ -->
+    <g class="tbl" transform="translate(700, 80)">
+      <rect width="270" height="38" rx="8" ry="8" fill="#0d9488"/>
+      <rect width="270" height="16" rx="0" ry="0" fill="#0d9488" y="22"/>
+      <text x="12" y="25" fill="white" font-size="13" font-weight="700">psychologist_profiles</text>
+
+      <rect y="38" width="270" height="287" rx="0" fill="#042f2e"/>
+      <rect y="295" width="270" height="30" rx="8" fill="#042f2e"/>
+
+      <rect y="38" width="270" height="32" fill="rgba(20,184,166,0.15)"/>
+      <text x="12" y="59" fill="#fbbf24" font-size="11" font-weight="700">🔑 id</text>
+      <text x="160" y="59" fill="#5eead4" font-size="11">serial · PK</text>
+
+      <line x1="0" y1="70" x2="270" y2="70" stroke="#134e4a" stroke-width="1"/>
+      <rect y="70" width="270" height="32" fill="rgba(99,102,241,0.1)"/>
+      <text x="12" y="91" fill="#fda4af" font-size="11" font-weight="600">🔗 user_id</text>
+      <text x="160" y="91" fill="#6366f1" font-size="11">int · FK → users (UNIQUE)</text>
+
+      <line x1="0" y1="102" x2="270" y2="102" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="122" fill="#99f6e4" font-size="11">date_of_birth</text>
+      <text x="160" y="122" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="134" x2="270" y2="134" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="154" fill="#99f6e4" font-size="11">profession</text>
+      <text x="160" y="154" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="166" x2="270" y2="166" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="186" fill="#99f6e4" font-size="11">license_number</text>
+      <text x="160" y="186" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="198" x2="270" y2="198" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="218" fill="#99f6e4" font-size="11">commission_percentage</text>
+      <text x="160" y="218" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="230" x2="270" y2="230" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="250" fill="#99f6e4" font-size="11">registration_date</text>
+      <text x="160" y="250" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="262" x2="270" y2="262" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="282" fill="#99f6e4" font-size="11">deregistration_date</text>
+      <text x="160" y="282" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="294" x2="270" y2="294" stroke="#134e4a" stroke-width="1"/>
+      <text x="12" y="314" fill="#64748b" font-size="11">created_at / updated_at</text>
+      <text x="200" y="314" fill="#374151" font-size="11">ts</text>
+    </g>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- TABLE: availability_slots       -->
+    <!-- ═══════════════════════════════ -->
+    <g class="tbl" transform="translate(700, 460)">
+      <rect width="270" height="38" rx="8" ry="8" fill="#0369a1"/>
+      <rect width="270" height="16" rx="0" ry="0" fill="#0369a1" y="22"/>
+      <text x="12" y="25" fill="white" font-size="13" font-weight="700">availability_slots</text>
+      <rect x="195" y="10" width="64" height="18" rx="9" fill="rgba(255,255,255,0.2)"/>
+      <text x="200" y="23" fill="white" font-size="9" font-weight="700">HORARIOS</text>
+
+      <rect y="38" width="270" height="224" rx="0" fill="#0c2842"/>
+      <rect y="232" width="270" height="30" rx="8" fill="#0c2842"/>
+
+      <rect y="38" width="270" height="32" fill="rgba(14,165,233,0.15)"/>
+      <text x="12" y="59" fill="#fbbf24" font-size="11" font-weight="700">🔑 id</text>
+      <text x="160" y="59" fill="#7dd3fc" font-size="11">serial · PK</text>
+
+      <line x1="0" y1="70" x2="270" y2="70" stroke="#0c4a6e" stroke-width="1"/>
+      <rect y="70" width="270" height="32" fill="rgba(20,184,166,0.1)"/>
+      <text x="12" y="91" fill="#fda4af" font-size="11" font-weight="600">🔗 psychologist_id</text>
+      <text x="160" y="91" fill="#14b8a6" font-size="11">int · FK → users</text>
+
+      <line x1="0" y1="102" x2="270" y2="102" stroke="#0c4a6e" stroke-width="1"/>
+      <text x="12" y="122" fill="#bae6fd" font-size="11">start_time</text>
+      <text x="160" y="122" fill="#64748b" font-size="11">timestamp</text>
+
+      <line x1="0" y1="134" x2="270" y2="134" stroke="#0c4a6e" stroke-width="1"/>
+      <text x="12" y="154" fill="#bae6fd" font-size="11">end_time</text>
+      <text x="160" y="154" fill="#64748b" font-size="11">timestamp</text>
+
+      <line x1="0" y1="166" x2="270" y2="166" stroke="#0c4a6e" stroke-width="1"/>
+      <text x="12" y="186" fill="#bae6fd" font-size="11">is_available</text>
+      <text x="160" y="186" fill="#64748b" font-size="11">boolean · default true</text>
+
+      <line x1="0" y1="198" x2="270" y2="198" stroke="#0c4a6e" stroke-width="1"/>
+      <text x="12" y="218" fill="#94a3b8" font-size="11" font-style="italic">notes</text>
+      <text x="160" y="218" fill="#475569" font-size="11">text · nullable</text>
+
+      <line x1="0" y1="230" x2="270" y2="230" stroke="#0c4a6e" stroke-width="1"/>
+      <text x="12" y="252" fill="#64748b" font-size="11">created_at</text>
+      <text x="160" y="252" fill="#374151" font-size="11">timestamp</text>
+    </g>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- TABLE: reclamaciones (bottom)   -->
+    <!-- ═══════════════════════════════ -->
+    <g class="tbl" transform="translate(30, 430)">
+      <rect width="300" height="38" rx="8" ry="8" fill="#b45309"/>
+      <rect width="300" height="16" rx="0" ry="0" fill="#b45309" y="22"/>
+      <text x="12" y="25" fill="white" font-size="14" font-weight="700">reclamaciones</text>
+      <rect x="210" y="10" width="78" height="18" rx="9" fill="rgba(255,255,255,0.2)"/>
+      <text x="213" y="23" fill="white" font-size="9" font-weight="700">INDEPENDIENTE</text>
+
+      <rect y="38" width="300" height="352" rx="0" fill="#1c1007"/>
+      <rect y="360" width="300" height="30" rx="8" fill="#1c1007"/>
+
+      <rect y="38" width="300" height="32" fill="rgba(217,119,6,0.2)"/>
+      <text x="12" y="59" fill="#fbbf24" font-size="11" font-weight="700">🔑 id</text>
+      <text x="175" y="59" fill="#fcd34d" font-size="11">serial · PK</text>
+
+      <line x1="0" y1="70" x2="300" y2="70" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="90" fill="#fde68a" font-size="11">correlativo</text>
+      <text x="175" y="90" fill="#64748b" font-size="11">text (auto-generado)</text>
+
+      <line x1="0" y1="102" x2="300" y2="102" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="122" fill="#fde68a" font-size="11">fecha / tipo_reclamo / tipo_item</text>
+      <text x="175" y="122" fill="#64748b" font-size="10">text</text>
+
+      <line x1="0" y1="134" x2="300" y2="134" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="154" fill="#fde68a" font-size="11">nombres / dni</text>
+      <text x="175" y="154" fill="#64748b" font-size="11">text</text>
+
+      <line x1="0" y1="166" x2="300" y2="166" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="186" fill="#fde68a" font-size="11">domicilio / telefono / email</text>
+      <text x="175" y="186" fill="#64748b" font-size="10">text</text>
+
+      <line x1="0" y1="198" x2="300" y2="198" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="218" fill="#fde68a" font-size="11">es_menor</text>
+      <text x="175" y="218" fill="#64748b" font-size="11">boolean</text>
+
+      <line x1="0" y1="230" x2="300" y2="230" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="250" fill="#d4a37a" font-size="11" font-style="italic">rep_nombres / rep_dni / rep_vinculo</text>
+      <text x="175" y="270" fill="#475569" font-size="10">text · nullable</text>
+
+      <line x1="0" y1="278" x2="300" y2="278" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="298" fill="#d4a37a" font-size="11" font-style="italic">monto</text>
+      <text x="175" y="298" fill="#475569" font-size="11">numeric · nullable</text>
+
+      <line x1="0" y1="310" x2="300" y2="310" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="330" fill="#fde68a" font-size="11">descripcion_bien / detalle / pedido</text>
+      <text x="175" y="346" fill="#64748b" font-size="10">text</text>
+
+      <line x1="0" y1="354" x2="300" y2="354" stroke="#451a03" stroke-width="1"/>
+      <text x="12" y="375" fill="#64748b" font-size="11">email_enviado · creado_en</text>
+      <text x="210" y="375" fill="#374151" font-size="10">bool · ts</text>
+    </g>
+
+    <!-- ═══════════════════════════════ -->
+    <!-- LEGEND                          -->
+    <!-- ═══════════════════════════════ -->
+    <g transform="translate(380, 360)">
+      <rect width="300" height="95" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="15" y="22" fill="#94a3b8" font-size="12" font-weight="700">LEYENDA</text>
+
+      <rect x="15" y="32" width="14" height="14" rx="3" fill="#fbbf24"/>
+      <text x="36" y="44" fill="#e2e8f0" font-size="11">🔑  Clave Primaria (PK)</text>
+
+      <line x1="15" y1="60" x2="29" y2="60" stroke="#6366f1" stroke-width="2" stroke-dasharray="4,2"/>
+      <text x="36" y="64" fill="#e2e8f0" font-size="11">── Relación Foránea → users.id</text>
+
+      <line x1="15" y1="80" x2="29" y2="80" stroke="#14b8a6" stroke-width="2" stroke-dasharray="4,2"/>
+      <text x="36" y="84" fill="#e2e8f0" font-size="11">── Relación via psychologist_id</text>
+
+      <text x="15" y="105" fill="#475569" font-size="10" font-style="italic">* Columnas en cursiva son opcionales (nullable)</text>
+    </g>
+
+    <!-- ENUM badge -->
+    <g transform="translate(395, 475)">
+      <rect width="270" height="50" rx="10" fill="#1e1b4b" stroke="#312e81" stroke-width="1"/>
+      <text x="15" y="20" fill="#94a3b8" font-size="12" font-weight="700">TIPO ENUM: role</text>
+      <rect x="15" y="28" width="55" height="16" rx="8" fill="#ef4444"/>
+      <text x="25" y="40" fill="white" font-size="10" font-weight="700">admin</text>
+      <rect x="78" y="28" width="45" height="16" rx="8" fill="#3b82f6"/>
+      <text x="87" y="40" fill="white" font-size="10" font-weight="700">user</text>
+      <rect x="131" y="28" width="70" height="16" rx="8" fill="#0d9488"/>
+      <text x="138" y="40" fill="white" font-size="10" font-weight="700">psicologo</text>
+    </g>
+
+  </svg>
+</div>
+</body>
+</html>
