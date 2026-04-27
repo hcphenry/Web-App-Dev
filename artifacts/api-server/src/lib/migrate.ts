@@ -155,6 +155,36 @@ export async function runMigrations() {
       END $$
     `);
 
+    // PHASE 5: Add CHECK constraints for controlled enum fields (idempotent)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_sexo'
+        ) THEN
+          ALTER TABLE patient_profiles
+            ADD CONSTRAINT chk_patient_profiles_sexo
+            CHECK (sexo IS NULL OR sexo IN ('masculino', 'femenino', 'otro'));
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_estado'
+        ) THEN
+          ALTER TABLE patient_profiles
+            ADD CONSTRAINT chk_patient_profiles_estado
+            CHECK (estado IS NULL OR estado IN ('activo', 'inactivo', 'suspendido'));
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_perioricidad'
+        ) THEN
+          ALTER TABLE patient_profiles
+            ADD CONSTRAINT chk_patient_profiles_perioricidad
+            CHECK (perioricidad IS NULL OR perioricidad IN ('semanal', 'quincenal', 'mensual', 'intensivo'));
+        END IF;
+      END $$
+    `);
+
     console.log("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
