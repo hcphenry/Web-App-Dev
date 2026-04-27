@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { 
   Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit,
-  ClipboardList, Eye, Save
+  ClipboardList, Eye, Save, Download
 } from "lucide-react";
 
 interface PatientProfile {
@@ -282,30 +282,68 @@ export default function AdminDashboard() {
 
   // ─── AUDIT LOGS ───────────────────────────────────────────────────────────
   const [auditActionFilter, setAuditActionFilter] = useState('');
-  const [auditActorIdFilter, setAuditActorIdFilter] = useState('');
+  const [auditActorNameFilter, setAuditActorNameFilter] = useState('');
   const [auditFromFilter, setAuditFromFilter] = useState('');
   const [auditToFilter, setAuditToFilter] = useState('');
   const [activeTab, setActiveTab] = useState('users');
   const [auditPage, setAuditPage] = useState(0);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const AUDIT_LIMIT = 25;
 
+  const buildAuditParams = (overrides?: { limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (auditActionFilter) params.set('action', auditActionFilter);
+    if (auditActorNameFilter.trim()) params.set('actorName', auditActorNameFilter.trim());
+    if (auditFromFilter) params.set('from', auditFromFilter);
+    if (auditToFilter) params.set('to', auditToFilter);
+    params.set('limit', String(overrides?.limit ?? AUDIT_LIMIT));
+    params.set('offset', String(overrides?.offset ?? auditPage * AUDIT_LIMIT));
+    return params;
+  };
+
   const { data: auditData, isLoading: loadingAudit } = useQuery<{ logs: AuditLog[]; total: number }>({
-    queryKey: ['audit-logs', auditActionFilter, auditActorIdFilter, auditFromFilter, auditToFilter, auditPage],
+    queryKey: ['audit-logs', auditActionFilter, auditActorNameFilter, auditFromFilter, auditToFilter, auditPage],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (auditActionFilter) params.set('action', auditActionFilter);
-      if (auditActorIdFilter) params.set('actorId', auditActorIdFilter);
-      if (auditFromFilter) params.set('from', auditFromFilter);
-      if (auditToFilter) params.set('to', auditToFilter);
-      params.set('limit', String(AUDIT_LIMIT));
-      params.set('offset', String(auditPage * AUDIT_LIMIT));
-      const res = await fetch(`/api/admin/audit-logs?${params}`);
+      const res = await fetch(`/api/admin/audit-logs?${buildAuditParams()}`);
       if (!res.ok) throw new Error("Error al cargar auditoría");
       return res.json();
     },
     staleTime: 0,
     enabled: activeTab === 'auditoria',
   });
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const params = buildAuditParams({ limit: 2000, offset: 0 });
+      const res = await fetch(`/api/admin/audit-logs?${params}`);
+      if (!res.ok) throw new Error("Error al exportar los registros de auditoría");
+      const data: { logs: AuditLog[] } = await res.json();
+      const headers = ['Fecha', 'Actor', 'Acción', 'Tabla', 'ID Objetivo', 'IP'];
+      const rows = data.logs.map(log => [
+        format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es }),
+        log.actorName || `ID ${log.actorId}`,
+        ACTION_LABELS[log.action] || log.action,
+        log.targetTable || '',
+        log.targetId ?? '',
+        log.ipAddress || '',
+      ]);
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `auditoria_${format(new Date(), 'yyyy-MM-dd_HHmm')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({ title: "Error al exportar", description: err instanceof Error ? err.message : "No se pudo generar el archivo CSV.", variant: "destructive" });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
   const auditLogs = auditData?.logs ?? [];
   const auditTotal = auditData?.total ?? 0;
 
@@ -637,9 +675,15 @@ export default function AdminDashboard() {
                     <h2 className="text-xl font-display font-semibold">Auditoría del Sistema</h2>
                     <p className="text-sm text-muted-foreground mt-0.5">Registro de acciones sensibles realizadas en el sistema.</p>
                   </div>
-                  <Button variant="outline" size="sm" className="rounded-full self-start" onClick={() => { setAuditActionFilter(''); setAuditActorIdFilter(''); setAuditFromFilter(''); setAuditToFilter(''); setAuditPage(0); }}>
-                    Limpiar filtros
-                  </Button>
+                  <div className="flex gap-2 self-start">
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={handleExportCsv} disabled={exportingCsv}>
+                      {exportingCsv ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+                      Exportar CSV
+                    </Button>
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setAuditActionFilter(''); setAuditActorNameFilter(''); setAuditFromFilter(''); setAuditToFilter(''); setAuditPage(0); }}>
+                      Limpiar filtros
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
                   <Select value={auditActionFilter || 'all'} onValueChange={v => { setAuditActionFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
@@ -660,17 +704,16 @@ export default function AdminDashboard() {
                       <SelectItem value="DELETE_USER">Eliminación de usuario</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select value={auditActorIdFilter || 'all'} onValueChange={v => { setAuditActorIdFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
-                    <SelectTrigger className="rounded-full bg-white">
-                      <SelectValue placeholder="Filtrar por usuario" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los usuarios</SelectItem>
-                      {(users ?? []).map(u => (
-                        <SelectItem key={u.id} value={String(u.id)}>{u.name || u.email}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar por nombre de actor…"
+                      className="rounded-full bg-white h-9 text-sm pl-8"
+                      value={auditActorNameFilter}
+                      onChange={e => { setAuditActorNameFilter(e.target.value); setAuditPage(0); }}
+                    />
+                  </div>
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs text-muted-foreground pl-1">Desde</Label>
                     <Input type="date" className="rounded-full bg-white h-9 text-sm" value={auditFromFilter} onChange={e => { setAuditFromFilter(e.target.value); setAuditPage(0); }} />

@@ -417,7 +417,7 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
 // ─── ADMIN: Audit logs ────────────────────────────────────────────────────
 
 router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
-  const { action, actorId, from, to, limit: limitParam, offset: offsetParam } = req.query as Record<string, string>;
+  const { action, actorId, actorName, from, to, limit: limitParam, offset: offsetParam } = req.query as Record<string, string>;
 
   const parsedLimit = parseInt(limitParam || "50");
   const parsedOffset = parseInt(offsetParam || "0");
@@ -440,7 +440,7 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
     return;
   }
 
-  const limit = Math.min(parsedLimit, 200);
+  const limit = Math.min(parsedLimit, 2000);
   const offset = parsedOffset;
 
   // Normalize `to` to end-of-day so all records from that calendar day are included.
@@ -449,6 +449,7 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const conditions: SQL[] = [];
   if (action) conditions.push(eq(auditLogsTable.action, action));
   if (parsedActorId !== null) conditions.push(eq(auditLogsTable.actorId, parsedActorId));
+  if (actorName && actorName.trim()) conditions.push(ilike(auditLogsTable.actorName, `%${actorName.trim()}%`));
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
   if (toDate) conditions.push(lte(auditLogsTable.createdAt, toDate));
 
