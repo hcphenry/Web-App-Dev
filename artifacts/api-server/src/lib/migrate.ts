@@ -139,6 +139,22 @@ export async function runMigrations() {
       END $$
     `);
 
+    // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (idempotent)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'audit_logs'
+            AND column_name = 'details'
+            AND data_type = 'text'
+        ) THEN
+          ALTER TABLE audit_logs
+            ALTER COLUMN details TYPE JSONB USING NULLIF(details, '')::jsonb;
+        END IF;
+      END $$
+    `);
+
     console.log("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

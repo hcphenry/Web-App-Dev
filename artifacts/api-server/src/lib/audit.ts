@@ -7,7 +7,7 @@ interface AuditParams {
   targetTable?: string | null;
   targetId?: number | null;
   ipAddress?: string | null;
-  details?: object | string | null;
+  details?: Record<string, unknown> | null;
 }
 
 export async function logAudit(params: AuditParams): Promise<void> {
@@ -19,11 +19,7 @@ export async function logAudit(params: AuditParams): Promise<void> {
       targetTable: params.targetTable ?? null,
       targetId: params.targetId ?? null,
       ipAddress: params.ipAddress ?? null,
-      details: params.details
-        ? typeof params.details === "string"
-          ? params.details
-          : JSON.stringify(params.details)
-        : null,
+      details: params.details ?? null,
     });
   } catch (err) {
     console.error("[audit] Failed to write audit log:", err);

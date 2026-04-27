@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const auditLogsTable = pgTable("audit_logs", {
@@ -9,7 +9,7 @@ export const auditLogsTable = pgTable("audit_logs", {
   targetTable: text("target_table"),
   targetId: integer("target_id"),
   ipAddress: text("ip_address"),
-  details: text("details"),
+  details: jsonb("details"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
