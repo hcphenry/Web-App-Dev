@@ -251,14 +251,30 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
 router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const { action, actorId, from, to, limit: limitParam, offset: offsetParam } = req.query as Record<string, string>;
 
-  const limit = Math.min(parseInt(limitParam || "50"), 200);
-  const offset = parseInt(offsetParam || "0");
+  const parsedLimit = parseInt(limitParam || "50");
+  const parsedOffset = parseInt(offsetParam || "0");
+  const parsedActorId = actorId ? parseInt(actorId) : null;
+
+  if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
+    res.status(400).json({ error: "Parámetros de paginación inválidos" });
+    return;
+  }
+  if (actorId && isNaN(parsedActorId!)) {
+    res.status(400).json({ error: "actorId debe ser un número entero" });
+    return;
+  }
+
+  const limit = Math.min(parsedLimit, 200);
+  const offset = parsedOffset;
+
+  // Normalize `to` to end-of-day so all records from that calendar day are included.
+  const toDate = to ? (() => { const d = new Date(to); d.setHours(23, 59, 59, 999); return d; })() : null;
 
   const conditions: SQL[] = [];
   if (action) conditions.push(like(auditLogsTable.action, `%${action}%`));
-  if (actorId) conditions.push(eq(auditLogsTable.actorId, parseInt(actorId)));
+  if (parsedActorId !== null) conditions.push(eq(auditLogsTable.actorId, parsedActorId));
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
-  if (to) conditions.push(lte(auditLogsTable.createdAt, new Date(to)));
+  if (toDate) conditions.push(lte(auditLogsTable.createdAt, toDate));
 
   const baseQuery = db
     .select()
