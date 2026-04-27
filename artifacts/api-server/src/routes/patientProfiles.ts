@@ -62,10 +62,12 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
     .where(eq(usersTable.id, userId))
     .limit(1);
 
+  // Only accept patient-editable fields. Admin-only fields (estado, costoTerapia,
+  // psicologaAsignada) are intentionally excluded to prevent privilege escalation.
   const {
-    apellidoPaterno, apellidoMaterno, perioricidad, fechaAlta, estado,
+    apellidoPaterno, apellidoMaterno, perioricidad, fechaAlta,
     nroCelular, tipoDocumento, numeroDocumento, fechaNacimiento, sexo,
-    direccion, distrito, ciudad, departamento, pais, costoTerapia, psicologaAsignada,
+    direccion, distrito, ciudad, departamento, pais,
   } = req.body;
 
   const data = {
@@ -73,7 +75,6 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
     apellidoMaterno: apellidoMaterno ?? null,
     perioricidad: perioricidad ?? null,
     fechaAlta: fechaAlta ?? null,
-    estado: estado ?? "activo",
     nroCelular: nroCelular ?? null,
     tipoDocumento: tipoDocumento ?? null,
     numeroDocumento: numeroDocumento ?? null,
@@ -84,8 +85,6 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
     ciudad: ciudad ?? null,
     departamento: departamento ?? null,
     pais: pais ?? "Perú",
-    costoTerapia: costoTerapia ?? null,
-    psicologaAsignada: psicologaAsignada ?? null,
     updatedAt: new Date(),
   };
 
