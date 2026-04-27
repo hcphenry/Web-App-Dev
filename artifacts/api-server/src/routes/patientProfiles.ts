@@ -1,7 +1,33 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
 import { eq, desc, and, gte, lte, like, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+
+// ─── Validation schemas ────────────────────────────────────────────────────
+
+const patientProfileSchema = z.object({
+  apellidoPaterno: z.string().max(100).nullable().optional(),
+  apellidoMaterno: z.string().max(100).nullable().optional(),
+  perioricidad: z.enum(["semanal", "quincenal", "mensual", "intensivo"]).nullable().optional(),
+  fechaAlta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  nroCelular: z.string().max(20).nullable().optional(),
+  tipoDocumento: z.string().max(20).nullable().optional(),
+  numeroDocumento: z.string().max(30).nullable().optional(),
+  fechaNacimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  sexo: z.enum(["masculino", "femenino", "otro"]).nullable().optional(),
+  direccion: z.string().max(200).nullable().optional(),
+  distrito: z.string().max(100).nullable().optional(),
+  ciudad: z.string().max(100).nullable().optional(),
+  departamento: z.string().max(100).nullable().optional(),
+  pais: z.string().max(100).nullable().optional(),
+});
+
+const adminPatientProfileSchema = patientProfileSchema.extend({
+  estado: z.enum(["activo", "inactivo", "suspendido"]).nullable().optional(),
+  costoTerapia: z.string().max(20).nullable().optional(),
+  psicologaAsignada: z.string().max(200).nullable().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -70,35 +96,34 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
   const userId = req.session!.userId!;
   const ip = req.ip || req.socket?.remoteAddress || null;
 
+  const parsed = patientProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos del perfil inválidos", details: parsed.error.flatten() });
+    return;
+  }
+
   const [actor] = await db
     .select({ name: usersTable.name })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1);
 
-  // Only accept patient-editable fields. Admin-only fields (estado, costoTerapia,
-  // psicologaAsignada) are intentionally excluded to prevent privilege escalation.
-  const {
-    apellidoPaterno, apellidoMaterno, perioricidad, fechaAlta,
-    nroCelular, tipoDocumento, numeroDocumento, fechaNacimiento, sexo,
-    direccion, distrito, ciudad, departamento, pais,
-  } = req.body;
-
+  const body = parsed.data;
   const data = {
-    apellidoPaterno: apellidoPaterno ?? null,
-    apellidoMaterno: apellidoMaterno ?? null,
-    perioricidad: perioricidad ?? null,
-    fechaAlta: fechaAlta ?? null,
-    nroCelular: nroCelular ?? null,
-    tipoDocumento: tipoDocumento ?? null,
-    numeroDocumento: numeroDocumento ?? null,
-    fechaNacimiento: fechaNacimiento ?? null,
-    sexo: sexo ?? null,
-    direccion: direccion ?? null,
-    distrito: distrito ?? null,
-    ciudad: ciudad ?? null,
-    departamento: departamento ?? null,
-    pais: pais ?? "Perú",
+    apellidoPaterno: body.apellidoPaterno ?? null,
+    apellidoMaterno: body.apellidoMaterno ?? null,
+    perioricidad: body.perioricidad ?? null,
+    fechaAlta: body.fechaAlta ?? null,
+    nroCelular: body.nroCelular ?? null,
+    tipoDocumento: body.tipoDocumento ?? null,
+    numeroDocumento: body.numeroDocumento ?? null,
+    fechaNacimiento: body.fechaNacimiento ?? null,
+    sexo: body.sexo ?? null,
+    direccion: body.direccion ?? null,
+    distrito: body.distrito ?? null,
+    ciudad: body.ciudad ?? null,
+    departamento: body.departamento ?? null,
+    pais: body.pais ?? "Perú",
     updatedAt: new Date(),
   };
 
@@ -141,6 +166,10 @@ router.get("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
   const patientId = parseInt(req.params.id);
   if (isNaN(patientId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
+  const [targetUser] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, patientId)).limit(1);
+  if (!targetUser) { res.status(404).json({ error: "Usuario no encontrado" }); return; }
+  if (targetUser.role !== "user") { res.status(400).json({ error: "El usuario especificado no es un paciente" }); return; }
+
   const actorId = req.session!.userId!;
   const ip = req.ip || req.socket?.remoteAddress || null;
 
@@ -177,6 +206,16 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
   const patientId = parseInt(req.params.id);
   if (isNaN(patientId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
+  const [targetUser] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, patientId)).limit(1);
+  if (!targetUser) { res.status(404).json({ error: "Usuario no encontrado" }); return; }
+  if (targetUser.role !== "user") { res.status(400).json({ error: "El usuario especificado no es un paciente" }); return; }
+
+  const parsed = adminPatientProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos del perfil inválidos", details: parsed.error.flatten() });
+    return;
+  }
+
   const actorId = req.session!.userId!;
   const ip = req.ip || req.socket?.remoteAddress || null;
 
@@ -186,30 +225,25 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
     .where(eq(usersTable.id, actorId))
     .limit(1);
 
-  const {
-    apellidoPaterno, apellidoMaterno, perioricidad, fechaAlta, estado,
-    nroCelular, tipoDocumento, numeroDocumento, fechaNacimiento, sexo,
-    direccion, distrito, ciudad, departamento, pais, costoTerapia, psicologaAsignada,
-  } = req.body;
-
+  const body = parsed.data;
   const data = {
-    apellidoPaterno: apellidoPaterno ?? null,
-    apellidoMaterno: apellidoMaterno ?? null,
-    perioricidad: perioricidad ?? null,
-    fechaAlta: fechaAlta ?? null,
-    estado: estado ?? "activo",
-    nroCelular: nroCelular ?? null,
-    tipoDocumento: tipoDocumento ?? null,
-    numeroDocumento: numeroDocumento ?? null,
-    fechaNacimiento: fechaNacimiento ?? null,
-    sexo: sexo ?? null,
-    direccion: direccion ?? null,
-    distrito: distrito ?? null,
-    ciudad: ciudad ?? null,
-    departamento: departamento ?? null,
-    pais: pais ?? "Perú",
-    costoTerapia: costoTerapia ?? null,
-    psicologaAsignada: psicologaAsignada ?? null,
+    apellidoPaterno: body.apellidoPaterno ?? null,
+    apellidoMaterno: body.apellidoMaterno ?? null,
+    perioricidad: body.perioricidad ?? null,
+    fechaAlta: body.fechaAlta ?? null,
+    estado: body.estado ?? "activo",
+    nroCelular: body.nroCelular ?? null,
+    tipoDocumento: body.tipoDocumento ?? null,
+    numeroDocumento: body.numeroDocumento ?? null,
+    fechaNacimiento: body.fechaNacimiento ?? null,
+    sexo: body.sexo ?? null,
+    direccion: body.direccion ?? null,
+    distrito: body.distrito ?? null,
+    ciudad: body.ciudad ?? null,
+    departamento: body.departamento ?? null,
+    pais: body.pais ?? "Perú",
+    costoTerapia: body.costoTerapia ?? null,
+    psicologaAsignada: body.psicologaAsignada ?? null,
     updatedAt: new Date(),
   };
 
