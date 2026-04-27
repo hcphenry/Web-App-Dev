@@ -140,6 +140,15 @@ export async function runMigrations() {
     `);
 
     // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (idempotent, safe)
+    // Uses a helper function with EXCEPTION handler for safe row-by-row validation.
+    await client.query(`
+      CREATE OR REPLACE FUNCTION _abc_safe_jsonb(v TEXT) RETURNS JSONB AS $fn$
+      BEGIN
+        RETURN v::jsonb;
+      EXCEPTION WHEN others THEN
+        RETURN NULL;
+      END $fn$ LANGUAGE plpgsql;
+    `);
     await client.query(`
       DO $$
       BEGIN
@@ -149,17 +158,17 @@ export async function runMigrations() {
             AND column_name = 'details'
             AND data_type = 'text'
         ) THEN
-          -- Nullify any rows whose details value is not valid JSON before converting
+          -- Nullify any rows that cannot be safely cast to JSONB (catch via helper function)
           UPDATE audit_logs
             SET details = NULL
-            WHERE details IS NOT NULL
-              AND details <> ''
-              AND NOT (details ~ E'^[{\\["]|^null$|^true$|^false$|^-?[0-9]');
+            WHERE details IS NOT NULL AND details <> ''
+              AND _abc_safe_jsonb(details) IS NULL;
           ALTER TABLE audit_logs
             ALTER COLUMN details TYPE JSONB USING NULLIF(details, '')::jsonb;
         END IF;
       END $$
     `);
+    await client.query(`DROP FUNCTION IF EXISTS _abc_safe_jsonb`);
 
     // PHASE 5: Add CHECK constraints for controlled enum fields (idempotent)
     await client.query(`
