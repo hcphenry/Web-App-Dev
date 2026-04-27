@@ -75,7 +75,7 @@ export default function RegisterAbc() {
       fetch('/api/patient/profile')
         .then(r => { if (!r.ok) throw new Error("Error al cargar perfil"); return r.json(); })
         .then(data => { setProfile(data ?? {}); })
-        .catch(() => {})
+        .catch(() => { toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar tu perfil. Intenta nuevamente.' }); })
         .finally(() => setLoadingProfile(false));
     }
   }, [view]);

@@ -123,89 +123,87 @@ export async function runMigrations() {
 
     await client.query("COMMIT");
 
-    // PHASE 3: Add FK constraint to audit_logs.actor_id → users.id (idempotent)
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.table_constraints
-          WHERE constraint_name = 'audit_logs_actor_id_fkey'
-            AND table_name = 'audit_logs'
-        ) THEN
-          ALTER TABLE audit_logs
-            ADD CONSTRAINT audit_logs_actor_id_fkey
-            FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
-        END IF;
-      END $$
-    `);
+    // Post-COMMIT phases: each runs independently so a failure in one does not block others.
+    // Each phase is idempotent, so partial failures are safe to retry on next startup.
 
-    // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (idempotent, safe)
-    // Uses a helper function with EXCEPTION handler for safe row-by-row validation.
-    await client.query(`
-      CREATE OR REPLACE FUNCTION _abc_safe_jsonb(v TEXT) RETURNS JSONB AS $fn$
-      BEGIN
-        RETURN v::jsonb;
-      EXCEPTION WHEN others THEN
-        RETURN NULL;
-      END $fn$ LANGUAGE plpgsql;
-    `);
-    await client.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'audit_logs'
-            AND column_name = 'details'
-            AND data_type = 'text'
-        ) THEN
-          -- Nullify any rows that cannot be safely cast to JSONB (catch via helper function)
-          UPDATE audit_logs
-            SET details = NULL
-            WHERE details IS NOT NULL AND details <> ''
-              AND _abc_safe_jsonb(details) IS NULL;
-          ALTER TABLE audit_logs
-            ALTER COLUMN details TYPE JSONB USING NULLIF(details, '')::jsonb;
-        END IF;
-      END $$
-    `);
-    await client.query(`DROP FUNCTION IF EXISTS _abc_safe_jsonb`);
+    // PHASE 3: Add FK constraint to audit_logs.actor_id → users.id
+    try {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'audit_logs_actor_id_fkey'
+              AND table_name = 'audit_logs'
+          ) THEN
+            ALTER TABLE audit_logs
+              ADD CONSTRAINT audit_logs_actor_id_fkey
+              FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
+          END IF;
+        END $$
+      `);
+    } catch (e) { console.warn("[migrate] PHASE 3 (FK constraint) skipped:", e); }
 
-    // PHASE 5: Add CHECK constraints for controlled enum fields (idempotent)
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_sexo'
-        ) THEN
-          ALTER TABLE patient_profiles
-            ADD CONSTRAINT chk_patient_profiles_sexo
-            CHECK (sexo IS NULL OR sexo IN ('masculino', 'femenino', 'otro'));
-        END IF;
+    // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (safe, row-by-row validation)
+    try {
+      await client.query(`
+        CREATE OR REPLACE FUNCTION _abc_safe_jsonb(v TEXT) RETURNS JSONB AS $fn$
+        BEGIN
+          RETURN v::jsonb;
+        EXCEPTION WHEN others THEN
+          RETURN NULL;
+        END $fn$ LANGUAGE plpgsql;
+      `);
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'audit_logs'
+              AND column_name = 'details'
+              AND data_type = 'text'
+          ) THEN
+            UPDATE audit_logs
+              SET details = NULL
+              WHERE details IS NOT NULL AND details <> ''
+                AND _abc_safe_jsonb(details) IS NULL;
+            ALTER TABLE audit_logs
+              ALTER COLUMN details TYPE JSONB USING NULLIF(details, '')::jsonb;
+          END IF;
+        END $$
+      `);
+      await client.query(`DROP FUNCTION IF EXISTS _abc_safe_jsonb`);
+    } catch (e) { console.warn("[migrate] PHASE 4 (JSONB migration) skipped:", e); }
 
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_estado'
-        ) THEN
-          ALTER TABLE patient_profiles
-            ADD CONSTRAINT chk_patient_profiles_estado
-            CHECK (estado IS NULL OR estado IN ('activo', 'inactivo', 'suspendido'));
-        END IF;
+    // PHASE 5: Add CHECK constraints for controlled enum fields
+    try {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_sexo') THEN
+            ALTER TABLE patient_profiles ADD CONSTRAINT chk_patient_profiles_sexo
+              CHECK (sexo IS NULL OR sexo IN ('masculino', 'femenino', 'otro'));
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_estado') THEN
+            ALTER TABLE patient_profiles ADD CONSTRAINT chk_patient_profiles_estado
+              CHECK (estado IS NULL OR estado IN ('activo', 'inactivo', 'suspendido'));
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_perioricidad') THEN
+            ALTER TABLE patient_profiles ADD CONSTRAINT chk_patient_profiles_perioricidad
+              CHECK (perioricidad IS NULL OR perioricidad IN ('semanal', 'quincenal', 'mensual', 'intensivo'));
+          END IF;
+        END $$
+      `);
+    } catch (e) { console.warn("[migrate] PHASE 5 (CHECK constraints) skipped:", e); }
 
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = 'chk_patient_profiles_perioricidad'
-        ) THEN
-          ALTER TABLE patient_profiles
-            ADD CONSTRAINT chk_patient_profiles_perioricidad
-            CHECK (perioricidad IS NULL OR perioricidad IN ('semanal', 'quincenal', 'mensual', 'intensivo'));
-        END IF;
-      END $$
-    `);
-
-    // PHASE 6: Add performance indexes on audit_logs filter/sort columns (idempotent)
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id);
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
-    `);
+    // PHASE 6: Add performance indexes on audit_logs filter/sort columns
+    try {
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
+      `);
+    } catch (e) { console.warn("[migrate] PHASE 6 (indexes) skipped:", e); }
 
     console.log("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
