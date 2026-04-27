@@ -303,11 +303,13 @@ export default function AdminDashboard() {
   });
 
   const ACTION_LABELS: Record<string, string> = {
+    LOGIN: "Inicio de sesión",
     VIEW_OWN_PROFILE: "Vio su propio perfil",
-    UPDATE_OWN_PROFILE: "Actualizó su perfil",
+    UPDATE_OWN_PROFILE: "Actualizó su perfil clínico",
+    UPDATE_OWN_EMAIL: "Cambió su correo electrónico",
+    UPDATE_OWN_PASSWORD: "Cambió su contraseña",
     VIEW_PATIENT_PROFILE: "Vio perfil de paciente",
     ADMIN_UPDATE_PATIENT_PROFILE: "Actualizó perfil de paciente",
-    LOGIN: "Inicio de sesión",
     CREATE_USER: "Creó usuario",
     UPDATE_USER: "Actualizó usuario",
     DELETE_USER: "Eliminó usuario",
@@ -641,7 +643,9 @@ export default function AdminDashboard() {
                       <SelectItem value="all">Todas las acciones</SelectItem>
                       <SelectItem value="LOGIN">Inicio de sesión</SelectItem>
                       <SelectItem value="VIEW_OWN_PROFILE">Visualización perfil propio</SelectItem>
-                      <SelectItem value="UPDATE_OWN_PROFILE">Actualización perfil propio</SelectItem>
+                      <SelectItem value="UPDATE_OWN_PROFILE">Actualización perfil clínico propio</SelectItem>
+                      <SelectItem value="UPDATE_OWN_EMAIL">Cambio de correo propio</SelectItem>
+                      <SelectItem value="UPDATE_OWN_PASSWORD">Cambio de contraseña</SelectItem>
                       <SelectItem value="VIEW_PATIENT_PROFILE">Visualización de perfil paciente</SelectItem>
                       <SelectItem value="ADMIN_UPDATE_PATIENT_PROFILE">Actualización admin perfil</SelectItem>
                       <SelectItem value="CREATE_USER">Creación de usuario</SelectItem>

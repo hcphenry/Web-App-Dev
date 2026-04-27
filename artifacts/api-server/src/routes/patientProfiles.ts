@@ -6,15 +6,21 @@ import { logAudit } from "../lib/audit";
 
 // ─── Validation schemas ────────────────────────────────────────────────────
 
+const dateField = z.union([
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  z.literal('').transform(() => null),
+  z.null(),
+]).optional();
+
 const patientProfileSchema = z.object({
   apellidoPaterno: z.string().max(100).nullable().optional(),
   apellidoMaterno: z.string().max(100).nullable().optional(),
   perioricidad: z.enum(["semanal", "quincenal", "mensual", "intensivo"]).nullable().optional(),
-  fechaAlta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  fechaAlta: dateField,
   nroCelular: z.string().max(20).nullable().optional(),
   tipoDocumento: z.string().max(20).nullable().optional(),
   numeroDocumento: z.string().max(30).nullable().optional(),
-  fechaNacimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  fechaNacimiento: dateField,
   sexo: z.enum(["masculino", "femenino", "otro"]).nullable().optional(),
   direccion: z.string().max(200).nullable().optional(),
   distrito: z.string().max(100).nullable().optional(),

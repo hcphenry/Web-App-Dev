@@ -98,6 +98,16 @@ router.put("/me/email", async (req, res) => {
     .where(eq(usersTable.id, userId))
     .returning();
 
+  await logAudit({
+    actorId: user.id,
+    actorName: user.name,
+    action: "UPDATE_OWN_EMAIL",
+    targetTable: "users",
+    targetId: user.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: { newEmail: email },
+  });
+
   res.json({ message: "Correo actualizado correctamente", email: updated.email });
 });
 
@@ -133,6 +143,16 @@ router.put("/me/password", async (req, res) => {
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+
+  await logAudit({
+    actorId: user.id,
+    actorName: user.name,
+    action: "UPDATE_OWN_PASSWORD",
+    targetTable: "users",
+    targetId: user.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: {},
+  });
 
   res.json({ message: "Contraseña actualizada correctamente" });
 });
