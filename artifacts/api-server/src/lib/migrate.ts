@@ -117,7 +117,7 @@ export async function runMigrations() {
         target_table  TEXT,
         target_id     INTEGER,
         ip_address    TEXT,
-        details       TEXT,
+        details       JSONB,
         created_at    TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
