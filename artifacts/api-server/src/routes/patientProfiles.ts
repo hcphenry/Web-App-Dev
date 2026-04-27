@@ -12,6 +12,9 @@ const dateField = z.union([
   z.null(),
 ]).optional();
 
+// Fields writable by the patient themselves.
+// Governance fields (estado, costoTerapia, psicologaAsignada) are intentionally
+// excluded here; they are managed exclusively by clinic administrators.
 const patientProfileSchema = z.object({
   apellidoPaterno: z.string().max(100).nullable().optional(),
   apellidoMaterno: z.string().max(100).nullable().optional(),
