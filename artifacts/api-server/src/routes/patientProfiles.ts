@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
-import { eq, desc, and, gte, lte, like, type SQL } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, count, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 // ─── Validation schemas ────────────────────────────────────────────────────
@@ -324,18 +324,23 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
   if (toDate) conditions.push(lte(auditLogsTable.createdAt, toDate));
 
-  const baseQuery = db
-    .select()
-    .from(auditLogsTable)
-    .orderBy(desc(auditLogsTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const logs = conditions.length > 0
-    ? await baseQuery.where(and(...conditions))
-    : await baseQuery;
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(auditLogsTable)
+      .where(whereClause)
+      .orderBy(desc(auditLogsTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: count() }).from(auditLogsTable).where(whereClause),
+  ]);
 
-  res.json(logs.map(l => ({ ...l, createdAt: l.createdAt.toISOString() })));
+  res.json({
+    logs: rows.map(l => ({ ...l, createdAt: l.createdAt.toISOString() })),
+    total,
+    limit,
+    offset,
+  });
 });
 
 export default router;

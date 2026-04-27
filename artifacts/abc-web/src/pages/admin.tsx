@@ -285,7 +285,7 @@ export default function AdminDashboard() {
   const [auditPage, setAuditPage] = useState(0);
   const AUDIT_LIMIT = 25;
 
-  const { data: auditLogs = [], isLoading: loadingAudit } = useQuery<AuditLog[]>({
+  const { data: auditData, isLoading: loadingAudit } = useQuery<{ logs: AuditLog[]; total: number }>({
     queryKey: ['audit-logs', auditActionFilter, auditActorIdFilter, auditFromFilter, auditToFilter, auditPage],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -301,6 +301,8 @@ export default function AdminDashboard() {
     },
     staleTime: 0,
   });
+  const auditLogs = auditData?.logs ?? [];
+  const auditTotal = auditData?.total ?? 0;
 
   const ACTION_LABELS: Record<string, string> = {
     LOGIN: "Inicio de sesión",
@@ -717,8 +719,10 @@ export default function AdminDashboard() {
                 <Button variant="outline" size="sm" className="rounded-full" disabled={auditPage === 0} onClick={() => setAuditPage(p => p - 1)}>
                   ← Anterior
                 </Button>
-                <span className="text-sm text-muted-foreground">Página {auditPage + 1}</span>
-                <Button variant="outline" size="sm" className="rounded-full" disabled={auditLogs.length < AUDIT_LIMIT} onClick={() => setAuditPage(p => p + 1)}>
+                <span className="text-sm text-muted-foreground">
+                  Página {auditPage + 1} · {auditTotal} registros
+                </span>
+                <Button variant="outline" size="sm" className="rounded-full" disabled={(auditPage + 1) * AUDIT_LIMIT >= auditTotal} onClick={() => setAuditPage(p => p + 1)}>
                   Siguiente →
                 </Button>
               </div>
