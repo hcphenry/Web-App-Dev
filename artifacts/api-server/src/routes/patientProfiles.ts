@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
-import { eq, desc, and, gte, lte, like, count, type SQL } from "drizzle-orm";
+import { eq, desc, and, gte, lte, count, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 // ─── Validation schemas ────────────────────────────────────────────────────
@@ -319,7 +319,7 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const toDate = to ? (() => { const d = new Date(to); d.setHours(23, 59, 59, 999); return d; })() : null;
 
   const conditions: SQL[] = [];
-  if (action) conditions.push(like(auditLogsTable.action, `%${action}%`));
+  if (action) conditions.push(eq(auditLogsTable.action, action));
   if (parsedActorId !== null) conditions.push(eq(auditLogsTable.actorId, parsedActorId));
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
   if (toDate) conditions.push(lte(auditLogsTable.createdAt, toDate));
