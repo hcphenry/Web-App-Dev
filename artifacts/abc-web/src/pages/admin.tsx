@@ -252,7 +252,9 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error(`Error al cargar perfil (${res.status})`);
       const data = await res.json();
       if (data) setPatientProfile(data);
-    } catch (_) {} finally {
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message || 'No se pudo cargar el perfil clínico' });
+    } finally {
       setLoadingPatientProfile(false);
     }
   };
