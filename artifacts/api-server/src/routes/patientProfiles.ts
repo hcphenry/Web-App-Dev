@@ -190,7 +190,7 @@ router.get("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
     actorName: actor?.name ?? null,
     action: "VIEW_PATIENT_PROFILE",
     targetTable: "patient_profiles",
-    targetId: patientId,
+    targetId: profiles[0]?.id ?? null,
     ipAddress: ip,
     details: { patientId },
   });
@@ -272,7 +272,7 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
     actorName: actor?.name ?? null,
     action: "ADMIN_UPDATE_PATIENT_PROFILE",
     targetTable: "patient_profiles",
-    targetId: patientId,
+    targetId: profile.id,
     ipAddress: ip,
     details: { patientId },
   });
