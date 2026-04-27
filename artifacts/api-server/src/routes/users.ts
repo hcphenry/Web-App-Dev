@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
 import {
   CreateUserBody,
   UpdateUserBody,
@@ -10,6 +11,12 @@ import {
   SuggestPasswordResponse,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+
+async function getActorName(actorId: number | undefined | null): Promise<string | null> {
+  if (!actorId) return null;
+  const [actor] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, actorId)).limit(1);
+  return actor?.name ?? null;
+}
 
 const router: IRouter = Router();
 
@@ -80,7 +87,7 @@ router.post("/users", requireAdmin, async (req, res) => {
 
   await logAudit({
     actorId: (req as any).session?.userId ?? null,
-    actorName: null,
+    actorName: await getActorName((req as any).session?.userId),
     action: "CREATE_USER",
     targetTable: "users",
     targetId: user.id,
@@ -131,7 +138,7 @@ router.put("/users/:id", requireAdmin, async (req, res) => {
 
   await logAudit({
     actorId: (req as any).session?.userId ?? null,
-    actorName: null,
+    actorName: await getActorName((req as any).session?.userId),
     action: "UPDATE_USER",
     targetTable: "users",
     targetId: user.id,
@@ -166,7 +173,7 @@ router.delete("/users/:id", requireAdmin, async (req, res) => {
 
   await logAudit({
     actorId: (req as any).session?.userId ?? null,
-    actorName: null,
+    actorName: await getActorName((req as any).session?.userId),
     action: "DELETE_USER",
     targetTable: "users",
     targetId: paramsParsed.data.id,

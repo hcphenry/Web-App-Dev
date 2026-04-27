@@ -255,12 +255,20 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const parsedOffset = parseInt(offsetParam || "0");
   const parsedActorId = actorId ? parseInt(actorId) : null;
 
-  if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
-    res.status(400).json({ error: "Parámetros de paginación inválidos" });
+  if (isNaN(parsedLimit) || isNaN(parsedOffset) || parsedLimit < 1 || parsedOffset < 0) {
+    res.status(400).json({ error: "Parámetros de paginación inválidos (limit >= 1, offset >= 0)" });
     return;
   }
   if (actorId && isNaN(parsedActorId!)) {
     res.status(400).json({ error: "actorId debe ser un número entero" });
+    return;
+  }
+  if (from && isNaN(Date.parse(from))) {
+    res.status(400).json({ error: "Fecha 'from' inválida" });
+    return;
+  }
+  if (to && isNaN(Date.parse(to))) {
+    res.status(400).json({ error: "Fecha 'to' inválida" });
     return;
   }
 
