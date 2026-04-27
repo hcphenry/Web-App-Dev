@@ -1,4 +1,5 @@
 import { pool } from "@workspace/db";
+import { logger } from "./logger";
 
 /**
  * Runs DDL migrations on startup to keep the production schema in sync.
@@ -8,7 +9,7 @@ export async function runMigrations() {
   const client = await pool.connect();
 
   try {
-    console.log("[migrate] Running schema migrations...");
+    logger.info("[migrate] Running schema migrations...");
 
     // PHASE 1: Add 'psicologo' to the role enum.
     // ALTER TYPE ADD VALUE must run OUTSIDE a transaction in PostgreSQL.
@@ -21,9 +22,9 @@ export async function runMigrations() {
     `);
 
     if (!enumResult.rows[0].exists) {
-      console.log("[migrate] Adding 'psicologo' to role enum...");
+      logger.info("[migrate] Adding 'psicologo' to role enum...");
       await client.query("ALTER TYPE role ADD VALUE 'psicologo'");
-      console.log("[migrate] ✓ Enum updated");
+      logger.info("[migrate] ✓ Enum updated");
     }
 
     // PHASE 2: Create missing tables (inside a transaction for atomicity).
@@ -142,7 +143,7 @@ export async function runMigrations() {
           END IF;
         END $$
       `);
-    } catch (e) { console.warn("[migrate] PHASE 3 (FK constraint) skipped:", e); }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 3 (FK constraint) skipped"); }
 
     // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (safe, row-by-row validation)
     try {
@@ -173,7 +174,7 @@ export async function runMigrations() {
         END $$
       `);
       await client.query(`DROP FUNCTION IF EXISTS _abc_safe_jsonb`);
-    } catch (e) { console.warn("[migrate] PHASE 4 (JSONB migration) skipped:", e); }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 4 (JSONB migration) skipped"); }
 
     // PHASE 5: Add CHECK constraints for controlled enum fields
     try {
@@ -194,7 +195,7 @@ export async function runMigrations() {
           END IF;
         END $$
       `);
-    } catch (e) { console.warn("[migrate] PHASE 5 (CHECK constraints) skipped:", e); }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 5 (CHECK constraints) skipped"); }
 
     // PHASE 6: Add performance indexes on audit_logs filter/sort columns
     try {
@@ -203,12 +204,12 @@ export async function runMigrations() {
         CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id);
         CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
       `);
-    } catch (e) { console.warn("[migrate] PHASE 6 (indexes) skipped:", e); }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 6 (indexes) skipped"); }
 
-    console.log("[migrate] ✓ Schema migrations applied successfully");
+    logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
-    console.error("[migrate] Migration failed:", err);
+    logger.error({ err }, "[migrate] Migration failed");
     // Don't crash the server — log and continue
   } finally {
     client.release();

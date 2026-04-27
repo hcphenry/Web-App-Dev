@@ -1,4 +1,5 @@
 import { db, auditLogsTable } from "@workspace/db";
+import { logger } from "./logger";
 
 interface AuditParams {
   actorId?: number | null;
@@ -22,6 +23,6 @@ export async function logAudit(params: AuditParams): Promise<void> {
       details: params.details ?? null,
     });
   } catch (err) {
-    console.error("[audit] Failed to write audit log:", err);
+    logger.error({ err, action: params.action }, "[audit] Failed to write audit log");
   }
 }
