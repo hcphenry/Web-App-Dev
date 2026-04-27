@@ -9,7 +9,7 @@ export const auditLogsTable = pgTable("audit_logs", {
   targetTable: text("target_table"),
   targetId: integer("target_id"),
   ipAddress: text("ip_address"),
-  details: jsonb("details"),
+  details: jsonb("details").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

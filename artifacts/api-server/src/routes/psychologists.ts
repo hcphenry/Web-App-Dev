@@ -112,12 +112,12 @@ router.post("/admin/psychologists", requireAdmin, async (req, res) => {
   }).returning();
 
   res.status(201).json({
+    ...profile,
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
     createdAt: user.createdAt.toISOString(),
-    ...profile,
   });
 });
 
