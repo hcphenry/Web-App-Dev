@@ -363,15 +363,16 @@ export default function RegisterAbc() {
                       <Input className="rounded-xl bg-white/50" value={profile.nroCelular || ''} onChange={e => setProfile(p => ({ ...p, nroCelular: e.target.value }))} placeholder="999 888 777" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Estado</Label>
-                      <Select value={profile.estado || 'activo'} onValueChange={v => setProfile(p => ({ ...p, estado: v }))}>
-                        <SelectTrigger className="rounded-xl bg-white/50"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="activo">Activo</SelectItem>
-                          <SelectItem value="inactivo">Inactivo</SelectItem>
-                          <SelectItem value="suspendido">Suspendido</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="flex items-center gap-1">
+                        Estado
+                        <span className="text-xs text-muted-foreground">(asignado por administración)</span>
+                      </Label>
+                      <Input
+                        className="rounded-xl bg-white/30 text-muted-foreground capitalize"
+                        value={profile.estado || 'activo'}
+                        readOnly
+                        disabled
+                      />
                     </div>
                   </div>
 

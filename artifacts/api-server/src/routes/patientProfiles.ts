@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
-import { eq, desc, and, gte, lte, like } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -39,17 +39,33 @@ router.use(loadUserRole);
 
 router.get("/patient/profile", requireAuth, async (req, res) => {
   const userId = req.session!.userId!;
+  const ip = req.ip || req.socket?.remoteAddress || null;
+
+  const [actor] = await db
+    .select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
   const profiles = await db
     .select()
     .from(patientProfilesTable)
     .where(eq(patientProfilesTable.userId, userId))
     .limit(1);
 
-  if (profiles.length === 0) {
-    res.json(null);
-    return;
+  if (profiles.length > 0) {
+    await logAudit({
+      actorId: userId,
+      actorName: actor?.name ?? null,
+      action: "VIEW_OWN_PROFILE",
+      targetTable: "patient_profiles",
+      targetId: profiles[0].id,
+      ipAddress: ip,
+      details: { userId },
+    });
   }
-  res.json(profiles[0]);
+
+  res.json(profiles[0] ?? null);
 });
 
 router.put("/patient/profile", requireAuth, async (req, res) => {
@@ -240,7 +256,7 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const limit = Math.min(parseInt(limitParam || "50"), 200);
   const offset = parseInt(offsetParam || "0");
 
-  const conditions: any[] = [];
+  const conditions: SQL[] = [];
   if (action) conditions.push(like(auditLogsTable.action, `%${action}%`));
   if (actorId) conditions.push(eq(auditLogsTable.actorId, parseInt(actorId)));
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
