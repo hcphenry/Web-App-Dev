@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -18,11 +18,34 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, ArrowLeft, CheckCircle2, MessageCircle, 
-  BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2
+  BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2, Save
 } from "lucide-react";
+
+interface PatientProfile {
+  id?: number;
+  userId?: number;
+  apellidoPaterno?: string | null;
+  apellidoMaterno?: string | null;
+  perioricidad?: string | null;
+  fechaAlta?: string | null;
+  estado?: string | null;
+  nroCelular?: string | null;
+  tipoDocumento?: string | null;
+  numeroDocumento?: string | null;
+  fechaNacimiento?: string | null;
+  sexo?: string | null;
+  direccion?: string | null;
+  distrito?: string | null;
+  ciudad?: string | null;
+  departamento?: string | null;
+  pais?: string | null;
+  costoTerapia?: string | null;
+  psicologaAsignada?: string | null;
+}
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
@@ -40,6 +63,22 @@ export default function RegisterAbc() {
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Clinical profile state
+  const [profile, setProfile] = useState<PatientProfile>({});
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (view === 'account') {
+      setLoadingProfile(true);
+      fetch('/api/patient/profile')
+        .then(r => r.json())
+        .then(data => { if (data) setProfile(data); })
+        .catch(() => {})
+        .finally(() => setLoadingProfile(false));
+    }
+  }, [view]);
 
   const { data: records, isLoading: loadingRecords } = useListMyRecords();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
@@ -105,6 +144,26 @@ export default function RegisterAbc() {
       toast({ variant: 'destructive', title: 'Error', description: err.message });
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const res = await fetch('/api/patient/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al guardar');
+      setProfile(data);
+      toast({ title: "Perfil guardado", description: "Tu información clínica ha sido actualizada." });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -238,13 +297,138 @@ export default function RegisterAbc() {
         {view === 'account' && (
           <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="glass-panel p-6 rounded-2xl border">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3">
                 <UserCircle className="w-8 h-8 text-primary" />
                 <div>
                   <h2 className="text-xl font-display font-semibold">Mi Cuenta</h2>
                   <p className="text-sm text-muted-foreground">Correo actual: <span className="font-medium text-foreground">{me?.email}</span></p>
                 </div>
               </div>
+            </div>
+
+            {/* Perfil Clínico */}
+            <div className="glass-panel p-6 rounded-2xl border">
+              <h3 className="font-semibold text-lg mb-5 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-sm">📋</span>
+                Perfil Clínico
+              </h3>
+              {loadingProfile ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando perfil...
+                </div>
+              ) : (
+                <form onSubmit={handleProfileSave} className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Apellido Paterno</Label>
+                      <Input className="rounded-xl bg-white/50" value={profile.apellidoPaterno || ''} onChange={e => setProfile(p => ({ ...p, apellidoPaterno: e.target.value }))} placeholder="Apellido paterno" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Apellido Materno</Label>
+                      <Input className="rounded-xl bg-white/50" value={profile.apellidoMaterno || ''} onChange={e => setProfile(p => ({ ...p, apellidoMaterno: e.target.value }))} placeholder="Apellido materno" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fecha de Nacimiento</Label>
+                      <Input type="date" className="rounded-xl bg-white/50" value={profile.fechaNacimiento || ''} onChange={e => setProfile(p => ({ ...p, fechaNacimiento: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sexo</Label>
+                      <Select value={profile.sexo || ''} onValueChange={v => setProfile(p => ({ ...p, sexo: v }))}>
+                        <SelectTrigger className="rounded-xl bg-white/50"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="masculino">Masculino</SelectItem>
+                          <SelectItem value="femenino">Femenino</SelectItem>
+                          <SelectItem value="otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tipo de Documento</Label>
+                      <Select value={profile.tipoDocumento || ''} onValueChange={v => setProfile(p => ({ ...p, tipoDocumento: v }))}>
+                        <SelectTrigger className="rounded-xl bg-white/50"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DNI">DNI</SelectItem>
+                          <SelectItem value="CE">Carné de Extranjería</SelectItem>
+                          <SelectItem value="Pasaporte">Pasaporte</SelectItem>
+                          <SelectItem value="RUC">RUC</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Número de Documento</Label>
+                      <Input className="rounded-xl bg-white/50" value={profile.numeroDocumento || ''} onChange={e => setProfile(p => ({ ...p, numeroDocumento: e.target.value }))} placeholder="N° de documento" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Celular</Label>
+                      <Input className="rounded-xl bg-white/50" value={profile.nroCelular || ''} onChange={e => setProfile(p => ({ ...p, nroCelular: e.target.value }))} placeholder="999 888 777" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Estado</Label>
+                      <Select value={profile.estado || 'activo'} onValueChange={v => setProfile(p => ({ ...p, estado: v }))}>
+                        <SelectTrigger className="rounded-xl bg-white/50"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="activo">Activo</SelectItem>
+                          <SelectItem value="inactivo">Inactivo</SelectItem>
+                          <SelectItem value="suspendido">Suspendido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Dirección</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Dirección</Label>
+                        <Input className="rounded-xl bg-white/50" value={profile.direccion || ''} onChange={e => setProfile(p => ({ ...p, direccion: e.target.value }))} placeholder="Av. / Jr. / Calle..." />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Distrito</Label>
+                        <Input className="rounded-xl bg-white/50" value={profile.distrito || ''} onChange={e => setProfile(p => ({ ...p, distrito: e.target.value }))} placeholder="Distrito" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Ciudad</Label>
+                        <Input className="rounded-xl bg-white/50" value={profile.ciudad || ''} onChange={e => setProfile(p => ({ ...p, ciudad: e.target.value }))} placeholder="Ciudad" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Departamento</Label>
+                        <Input className="rounded-xl bg-white/50" value={profile.departamento || ''} onChange={e => setProfile(p => ({ ...p, departamento: e.target.value }))} placeholder="Departamento" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>País</Label>
+                        <Input className="rounded-xl bg-white/50" value={profile.pais || 'Perú'} onChange={e => setProfile(p => ({ ...p, pais: e.target.value }))} placeholder="País" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Información Terapéutica</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Perioricidad de Sesiones</Label>
+                        <Select value={profile.perioricidad || ''} onValueChange={v => setProfile(p => ({ ...p, perioricidad: v }))}>
+                          <SelectTrigger className="rounded-xl bg-white/50"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="semanal">Semanal</SelectItem>
+                            <SelectItem value="quincenal">Quincenal</SelectItem>
+                            <SelectItem value="mensual">Mensual</SelectItem>
+                            <SelectItem value="intensivo">Intensivo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Fecha de Alta Terapéutica</Label>
+                        <Input type="date" className="rounded-xl bg-white/50" value={profile.fechaAlta || ''} onChange={e => setProfile(p => ({ ...p, fechaAlta: e.target.value }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={savingProfile} className="rounded-xl w-full">
+                    {savingProfile ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                    Guardar Perfil Clínico
+                  </Button>
+                </form>
+              )}
             </div>
 
             {/* Cambiar correo */}

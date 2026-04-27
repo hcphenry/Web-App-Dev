@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import usersRouter from "./users";
 import recordsRouter from "./records";
 import psychologistsRouter from "./psychologists";
+import patientProfilesRouter from "./patientProfiles";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use("/auth", authRouter);
 router.use("/admin", usersRouter);
 router.use(recordsRouter);
 router.use(psychologistsRouter);
+router.use(patientProfilesRouter);
 
 export default router;

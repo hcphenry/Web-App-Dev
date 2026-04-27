@@ -81,6 +81,46 @@ export async function runMigrations() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS patient_profiles (
+        id                  SERIAL PRIMARY KEY,
+        user_id             INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        apellido_paterno    TEXT,
+        apellido_materno    TEXT,
+        perioricidad        TEXT,
+        fecha_alta          TEXT,
+        estado              TEXT DEFAULT 'activo',
+        nro_celular         TEXT,
+        tipo_documento      TEXT,
+        numero_documento    TEXT,
+        fecha_nacimiento    TEXT,
+        sexo                TEXT,
+        direccion           TEXT,
+        distrito            TEXT,
+        ciudad              TEXT,
+        departamento        TEXT,
+        pais                TEXT DEFAULT 'Perú',
+        costo_terapia       TEXT,
+        psicologa_asignada  TEXT,
+        created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id            SERIAL PRIMARY KEY,
+        actor_id      INTEGER,
+        actor_name    TEXT,
+        action        TEXT NOT NULL,
+        target_table  TEXT,
+        target_id     INTEGER,
+        ip_address    TEXT,
+        details       TEXT,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     await client.query("COMMIT");
 
     console.log("[migrate] ✓ Schema migrations applied successfully");

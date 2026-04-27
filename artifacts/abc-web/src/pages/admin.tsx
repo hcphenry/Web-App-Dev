@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
@@ -24,8 +24,43 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { 
-  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit
+  Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit,
+  ClipboardList, Eye, Save
 } from "lucide-react";
+
+interface PatientProfile {
+  id?: number;
+  userId?: number;
+  apellidoPaterno?: string | null;
+  apellidoMaterno?: string | null;
+  perioricidad?: string | null;
+  fechaAlta?: string | null;
+  estado?: string | null;
+  nroCelular?: string | null;
+  tipoDocumento?: string | null;
+  numeroDocumento?: string | null;
+  fechaNacimiento?: string | null;
+  sexo?: string | null;
+  direccion?: string | null;
+  distrito?: string | null;
+  ciudad?: string | null;
+  departamento?: string | null;
+  pais?: string | null;
+  costoTerapia?: string | null;
+  psicologaAsignada?: string | null;
+}
+
+interface AuditLog {
+  id: number;
+  actorId?: number | null;
+  actorName?: string | null;
+  action: string;
+  targetTable?: string | null;
+  targetId?: number | null;
+  ipAddress?: string | null;
+  details?: string | null;
+  createdAt: string;
+}
 
 // --- Schemas ---
 const userSchema = z.object({
@@ -200,6 +235,73 @@ export default function AdminDashboard() {
     }
   };
 
+  // ─── PATIENT PROFILE ─────────────────────────────────────────────────────
+  const [patientProfileOpen, setPatientProfileOpen] = useState(false);
+  const [profilePatient, setProfilePatient] = useState<User | null>(null);
+  const [patientProfile, setPatientProfile] = useState<PatientProfile>({});
+  const [loadingPatientProfile, setLoadingPatientProfile] = useState(false);
+  const [savingPatientProfile, setSavingPatientProfile] = useState(false);
+
+  const openPatientProfile = async (user: User) => {
+    setProfilePatient(user);
+    setPatientProfile({});
+    setPatientProfileOpen(true);
+    setLoadingPatientProfile(true);
+    try {
+      const res = await fetch(`/api/admin/patients/${user.id}/profile`);
+      const data = await res.json();
+      if (data) setPatientProfile(data);
+    } catch (_) {} finally {
+      setLoadingPatientProfile(false);
+    }
+  };
+
+  const handlePatientProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profilePatient) return;
+    setSavingPatientProfile(true);
+    try {
+      const res = await fetch(`/api/admin/patients/${profilePatient.id}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patientProfile),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setPatientProfile(data);
+      toast({ title: "Perfil clínico actualizado" });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setSavingPatientProfile(false);
+    }
+  };
+
+  // ─── AUDIT LOGS ───────────────────────────────────────────────────────────
+  const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [auditPage, setAuditPage] = useState(0);
+  const AUDIT_LIMIT = 25;
+
+  const { data: auditLogs = [], isLoading: loadingAudit } = useQuery<AuditLog[]>({
+    queryKey: ['audit-logs', auditActionFilter, auditPage],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (auditActionFilter) params.set('action', auditActionFilter);
+      params.set('limit', String(AUDIT_LIMIT));
+      params.set('offset', String(auditPage * AUDIT_LIMIT));
+      const res = await fetch(`/api/admin/audit-logs?${params}`);
+      if (!res.ok) throw new Error("Error al cargar auditoría");
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  const ACTION_LABELS: Record<string, string> = {
+    UPDATE_OWN_PROFILE: "Actualizó su perfil",
+    VIEW_PATIENT_PROFILE: "Vio perfil de paciente",
+    ADMIN_UPDATE_PATIENT_PROFILE: "Actualizó perfil de paciente",
+  };
+
   // ─── PSICÓLOGOS ─────────────────────────────────────────────────────────
   const psicologoForm = useForm<z.infer<typeof psicologoSchema>>({
     resolver: zodResolver(psicologoSchema),
@@ -281,18 +383,21 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-3xl grid-cols-5 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="users" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <Users className="w-4 h-4 mr-2" /> Usuarios
+              <Users className="w-4 h-4 mr-1.5" /> Usuarios
             </TabsTrigger>
             <TabsTrigger value="records" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <Database className="w-4 h-4 mr-2" /> Registros
+              <Database className="w-4 h-4 mr-1.5" /> Registros
             </TabsTrigger>
             <TabsTrigger value="psicologos" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <BrainCircuit className="w-4 h-4 mr-2" /> Psicólogos
+              <BrainCircuit className="w-4 h-4 mr-1.5" /> Psicólogos
+            </TabsTrigger>
+            <TabsTrigger value="auditoria" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ClipboardList className="w-4 h-4 mr-1.5" /> Auditoría
             </TabsTrigger>
             <TabsTrigger value="account" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
+              <UserCircle className="w-4 h-4 mr-1.5" /> Mi Cuenta
             </TabsTrigger>
           </TabsList>
 
@@ -335,6 +440,11 @@ export default function AdminDashboard() {
                           {format(new Date(u.createdAt), "dd/MM/yyyy", { locale: es })}
                         </td>
                         <td className="px-6 py-4 flex justify-end gap-2">
+                          {u.role === 'user' && (
+                            <Button variant="ghost" size="icon" title="Ver Perfil Clínico" onClick={() => openPatientProfile(u)} className="h-8 w-8 text-teal-600 hover:bg-teal-50 rounded-full">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" onClick={() => openEditModal(u)} className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full">
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -494,6 +604,79 @@ export default function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* AUDITORÍA TAB */}
+          <TabsContent value="auditoria" className="mt-6">
+            <div className="glass-panel rounded-[2rem] overflow-hidden shadow-lg border">
+              <div className="p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-border/50 bg-white/40">
+                <div>
+                  <h2 className="text-xl font-display font-semibold">Auditoría del Sistema</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Registro de acciones sensibles realizadas en el sistema.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select value={auditActionFilter} onValueChange={v => { setAuditActionFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
+                    <SelectTrigger className="w-[220px] rounded-full bg-white">
+                      <SelectValue placeholder="Filtrar por acción" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las acciones</SelectItem>
+                      <SelectItem value="UPDATE_OWN_PROFILE">Actualización de perfil propio</SelectItem>
+                      <SelectItem value="VIEW_PATIENT_PROFILE">Visualización de perfil</SelectItem>
+                      <SelectItem value="ADMIN_UPDATE_PATIENT_PROFILE">Actualización admin de perfil</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
+                    <tr>
+                      <th className="px-6 py-4 font-semibold">Fecha</th>
+                      <th className="px-6 py-4 font-semibold">Actor</th>
+                      <th className="px-6 py-4 font-semibold">Acción</th>
+                      <th className="px-6 py-4 font-semibold">Tabla</th>
+                      <th className="px-6 py-4 font-semibold">ID Objetivo</th>
+                      <th className="px-6 py-4 font-semibold">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingAudit ? (
+                      <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Cargando auditoría...</td></tr>
+                    ) : auditLogs.length === 0 ? (
+                      <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No hay registros de auditoría.</td></tr>
+                    ) : auditLogs.map(log => (
+                      <tr key={log.id} className="border-b border-border/50 hover:bg-white/40 transition-colors">
+                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap text-xs">
+                          {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es })}
+                        </td>
+                        <td className="px-6 py-3 font-medium text-foreground">{log.actorName || `ID ${log.actorId}`}</td>
+                        <td className="px-6 py-3">
+                          <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                            {ACTION_LABELS[log.action] || log.action}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-muted-foreground text-xs">{log.targetTable || '—'}</td>
+                        <td className="px-6 py-3 text-muted-foreground text-xs">{log.targetId ?? '—'}</td>
+                        <td className="px-6 py-3 text-muted-foreground text-xs">{log.ipAddress || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              <div className="p-4 flex justify-between items-center border-t border-border/50">
+                <Button variant="outline" size="sm" className="rounded-full" disabled={auditPage === 0} onClick={() => setAuditPage(p => p - 1)}>
+                  ← Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">Página {auditPage + 1}</span>
+                <Button variant="outline" size="sm" className="rounded-full" disabled={auditLogs.length < AUDIT_LIMIT} onClick={() => setAuditPage(p => p + 1)}>
+                  Siguiente →
+                </Button>
               </div>
             </div>
           </TabsContent>
@@ -762,6 +945,146 @@ export default function AdminDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* PATIENT CLINICAL PROFILE DIALOG */}
+      <Dialog open={patientProfileOpen} onOpenChange={open => { setPatientProfileOpen(open); if (!open) { setProfilePatient(null); setPatientProfile({}); } }}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-teal-600" />
+              Perfil Clínico — {profilePatient?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingPatientProfile ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando perfil...
+            </div>
+          ) : (
+            <form onSubmit={handlePatientProfileSave} className="space-y-5 mt-2">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Apellido Paterno</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.apellidoPaterno || ''} onChange={e => setPatientProfile(p => ({ ...p, apellidoPaterno: e.target.value }))} placeholder="Apellido paterno" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Apellido Materno</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.apellidoMaterno || ''} onChange={e => setPatientProfile(p => ({ ...p, apellidoMaterno: e.target.value }))} placeholder="Apellido materno" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de Nacimiento</Label>
+                  <Input type="date" className="rounded-xl bg-secondary/30" value={patientProfile.fechaNacimiento || ''} onChange={e => setPatientProfile(p => ({ ...p, fechaNacimiento: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sexo</Label>
+                  <Select value={patientProfile.sexo || ''} onValueChange={v => setPatientProfile(p => ({ ...p, sexo: v }))}>
+                    <SelectTrigger className="rounded-xl bg-secondary/30"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="masculino">Masculino</SelectItem>
+                      <SelectItem value="femenino">Femenino</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de Documento</Label>
+                  <Select value={patientProfile.tipoDocumento || ''} onValueChange={v => setPatientProfile(p => ({ ...p, tipoDocumento: v }))}>
+                    <SelectTrigger className="rounded-xl bg-secondary/30"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DNI">DNI</SelectItem>
+                      <SelectItem value="CE">Carné de Extranjería</SelectItem>
+                      <SelectItem value="Pasaporte">Pasaporte</SelectItem>
+                      <SelectItem value="RUC">RUC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Número de Documento</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.numeroDocumento || ''} onChange={e => setPatientProfile(p => ({ ...p, numeroDocumento: e.target.value }))} placeholder="N° de documento" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Celular</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.nroCelular || ''} onChange={e => setPatientProfile(p => ({ ...p, nroCelular: e.target.value }))} placeholder="999 888 777" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Select value={patientProfile.estado || 'activo'} onValueChange={v => setPatientProfile(p => ({ ...p, estado: v }))}>
+                    <SelectTrigger className="rounded-xl bg-secondary/30"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="activo">Activo</SelectItem>
+                      <SelectItem value="inactivo">Inactivo</SelectItem>
+                      <SelectItem value="suspendido">Suspendido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Dirección</p>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Dirección</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.direccion || ''} onChange={e => setPatientProfile(p => ({ ...p, direccion: e.target.value }))} placeholder="Av. / Jr. / Calle..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Distrito</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.distrito || ''} onChange={e => setPatientProfile(p => ({ ...p, distrito: e.target.value }))} placeholder="Distrito" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ciudad</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.ciudad || ''} onChange={e => setPatientProfile(p => ({ ...p, ciudad: e.target.value }))} placeholder="Ciudad" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Departamento</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.departamento || ''} onChange={e => setPatientProfile(p => ({ ...p, departamento: e.target.value }))} placeholder="Departamento" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>País</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.pais || 'Perú'} onChange={e => setPatientProfile(p => ({ ...p, pais: e.target.value }))} placeholder="País" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Información Terapéutica</p>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Perioricidad de Sesiones</Label>
+                    <Select value={patientProfile.perioricidad || ''} onValueChange={v => setPatientProfile(p => ({ ...p, perioricidad: v }))}>
+                      <SelectTrigger className="rounded-xl bg-secondary/30"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="semanal">Semanal</SelectItem>
+                        <SelectItem value="quincenal">Quincenal</SelectItem>
+                        <SelectItem value="mensual">Mensual</SelectItem>
+                        <SelectItem value="intensivo">Intensivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de Alta Terapéutica</Label>
+                    <Input type="date" className="rounded-xl bg-secondary/30" value={patientProfile.fechaAlta || ''} onChange={e => setPatientProfile(p => ({ ...p, fechaAlta: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Psicóloga Asignada</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.psicologaAsignada || ''} onChange={e => setPatientProfile(p => ({ ...p, psicologaAsignada: e.target.value }))} placeholder="Nombre de la psicóloga" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Costo de Terapia (S/.)</Label>
+                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.costoTerapia || ''} onChange={e => setPatientProfile(p => ({ ...p, costoTerapia: e.target.value }))} placeholder="0.00" />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setPatientProfileOpen(false)} className="rounded-xl">Cerrar</Button>
+                <Button type="submit" disabled={savingPatientProfile} className="rounded-xl bg-teal-600 hover:bg-teal-700">
+                  {savingPatientProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Guardar Perfil
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

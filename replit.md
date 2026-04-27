@@ -46,10 +46,11 @@ artifacts-monorepo/
 - View past records
 
 ### Admin View
-- Dashboard at `/admin` (4 tabs)
-- **Usuarios**: User management (create, edit, delete, change password)
+- Dashboard at `/admin` (5 tabs)
+- **Usuarios**: User management (create, edit, delete, change password). Patients have a teal eye-icon button to open their clinical profile.
 - **Registros**: View all ABC records filtered by user (card-based layout)
 - **Psicólogos**: Manage psychologists (CRUD with professional profile data)
+- **Auditoría**: Audit log viewer with action filter and pagination (VIEW_PATIENT_PROFILE, ADMIN_UPDATE_PATIENT_PROFILE, UPDATE_OWN_PROFILE)
 - **Mi Cuenta**: Admin can change their own email/password
 - Password suggestion tool
 
@@ -61,7 +62,8 @@ artifacts-monorepo/
 
 ### Patient View
 - ABC registration form at `/register-abc`
-- 3 views: form, history, account (change email/password)
+- 3 views: form, history, account
+- **Mi Cuenta** now includes full clinical profile form (apellidos, fecha nacimiento, sexo, documento, celular, estado, dirección, perioricidad, fecha alta) plus email/password change
 
 ## Database Schema
 
@@ -69,6 +71,9 @@ artifacts-monorepo/
 - **records**: id, user_id, situacion, pensamientos, emocion, intensidad, conducta, reflexion, created_at
 - **psychologist_profiles**: id, user_id, date_of_birth, profession, registration_date, deregistration_date, commission_percentage, license_number
 - **availability_slots**: id, psychologist_id, start_time, end_time, is_available, notes, created_at
+- **patient_profiles**: id, user_id (FK→users, unique), apellido_paterno, apellido_materno, perioricidad, fecha_alta, estado (activo/inactivo/suspendido), nro_celular, tipo_documento, numero_documento, fecha_nacimiento, sexo, direccion, distrito, ciudad, departamento, pais, costo_terapia, psicologa_asignada, created_at, updated_at
+- **audit_logs**: id, actor_id, actor_name, action, target_table, target_id, ip_address, details (JSON text), created_at
+- **reclamaciones**: id, correlativo, fecha, tipo_reclamo, tipo_item, nombres, dni, domicilio, telefono, email, es_menor, rep_nombres, rep_dni, rep_vinculo, monto, descripcion_bien, detalle, pedido, email_enviado, creado_en
 
 ## Default Admin Credentials
 
@@ -107,6 +112,11 @@ All routes under `/api`:
 - `POST /psicologo/availability` — Create availability slot
 - `PUT /psicologo/availability/:id` — Update slot
 - `DELETE /psicologo/availability/:id` — Delete slot
+- `GET /patient/profile` — Patient's own clinical profile (auth required)
+- `PUT /patient/profile` — Save/update own clinical profile (auth required, logs audit)
+- `GET /admin/patients/:id/profile` — View any patient's clinical profile (admin only, logs audit)
+- `PUT /admin/patients/:id/profile` — Update any patient's clinical profile (admin only, logs audit)
+- `GET /admin/audit-logs` — Paginated audit log list with action/actor/date filters (admin only)
 
 ## TypeScript & Composite Projects
 
