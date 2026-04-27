@@ -9,6 +9,7 @@ import {
   DeleteUserParams,
   SuggestPasswordResponse,
 } from "@workspace/api-zod";
+import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -77,6 +78,16 @@ router.post("/users", requireAdmin, async (req, res) => {
     role: role ?? "user",
   }).returning();
 
+  await logAudit({
+    actorId: (req as any).session?.userId ?? null,
+    actorName: null,
+    action: "CREATE_USER",
+    targetTable: "users",
+    targetId: user.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: { name, email, role: user.role },
+  });
+
   res.status(201).json({
     id: user.id,
     name: user.name,
@@ -118,6 +129,16 @@ router.put("/users/:id", requireAdmin, async (req, res) => {
     return;
   }
 
+  await logAudit({
+    actorId: (req as any).session?.userId ?? null,
+    actorName: null,
+    action: "UPDATE_USER",
+    targetTable: "users",
+    targetId: user.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: { updatedFields: Object.keys(updates) },
+  });
+
   res.json({
     id: user.id,
     name: user.name,
@@ -142,6 +163,16 @@ router.delete("/users/:id", requireAdmin, async (req, res) => {
     res.status(404).json({ error: "Usuario no encontrado" });
     return;
   }
+
+  await logAudit({
+    actorId: (req as any).session?.userId ?? null,
+    actorName: null,
+    action: "DELETE_USER",
+    targetTable: "users",
+    targetId: paramsParsed.data.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: { name: deleted.name, email: deleted.email },
+  });
 
   res.json({ message: "Usuario eliminado correctamente" });
 });

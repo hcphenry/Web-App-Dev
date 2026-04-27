@@ -241,33 +241,22 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   const limit = Math.min(parseInt(limitParam || "50"), 200);
   const offset = parseInt(offsetParam || "0");
 
-  let query = db
-    .select()
-    .from(auditLogsTable)
-    .orderBy(desc(auditLogsTable.createdAt))
-    .limit(limit)
-    .offset(offset);
-
   const conditions: any[] = [];
   if (action) conditions.push(like(auditLogsTable.action, `%${action}%`));
   if (actorId) conditions.push(eq(auditLogsTable.actorId, parseInt(actorId)));
   if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
   if (to) conditions.push(lte(auditLogsTable.createdAt, new Date(to)));
 
+  const baseQuery = db
+    .select()
+    .from(auditLogsTable)
+    .orderBy(desc(auditLogsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
   const logs = conditions.length > 0
-    ? await db
-        .select()
-        .from(auditLogsTable)
-        .where(and(...conditions))
-        .orderBy(desc(auditLogsTable.createdAt))
-        .limit(limit)
-        .offset(offset)
-    : await db
-        .select()
-        .from(auditLogsTable)
-        .orderBy(desc(auditLogsTable.createdAt))
-        .limit(limit)
-        .offset(offset);
+    ? await baseQuery.where(and(...conditions))
+    : await baseQuery;
 
   res.json(logs.map(l => ({ ...l, createdAt: l.createdAt.toISOString() })));
 });

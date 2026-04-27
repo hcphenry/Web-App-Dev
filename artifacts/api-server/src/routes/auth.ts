@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { LoginBody, LoginResponse, GetMeResponse, LogoutResponse } from "@workspace/api-zod";
+import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -30,6 +31,16 @@ router.post("/login", async (req, res) => {
   }
 
   (req as any).session.userId = user.id;
+
+  await logAudit({
+    actorId: user.id,
+    actorName: user.name,
+    action: "LOGIN",
+    targetTable: "users",
+    targetId: user.id,
+    ipAddress: (req as any).ip || (req as any).socket?.remoteAddress || null,
+    details: { email: user.email, role: user.role },
+  });
 
   const response = LoginResponse.parse({
     user: {

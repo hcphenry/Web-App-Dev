@@ -279,14 +279,20 @@ export default function AdminDashboard() {
 
   // ─── AUDIT LOGS ───────────────────────────────────────────────────────────
   const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [auditActorIdFilter, setAuditActorIdFilter] = useState('');
+  const [auditFromFilter, setAuditFromFilter] = useState('');
+  const [auditToFilter, setAuditToFilter] = useState('');
   const [auditPage, setAuditPage] = useState(0);
   const AUDIT_LIMIT = 25;
 
   const { data: auditLogs = [], isLoading: loadingAudit } = useQuery<AuditLog[]>({
-    queryKey: ['audit-logs', auditActionFilter, auditPage],
+    queryKey: ['audit-logs', auditActionFilter, auditActorIdFilter, auditFromFilter, auditToFilter, auditPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (auditActionFilter) params.set('action', auditActionFilter);
+      if (auditActorIdFilter) params.set('actorId', auditActorIdFilter);
+      if (auditFromFilter) params.set('from', auditFromFilter);
+      if (auditToFilter) params.set('to', auditToFilter);
       params.set('limit', String(AUDIT_LIMIT));
       params.set('offset', String(auditPage * AUDIT_LIMIT));
       const res = await fetch(`/api/admin/audit-logs?${params}`);
@@ -300,6 +306,10 @@ export default function AdminDashboard() {
     UPDATE_OWN_PROFILE: "Actualizó su perfil",
     VIEW_PATIENT_PROFILE: "Vio perfil de paciente",
     ADMIN_UPDATE_PATIENT_PROFILE: "Actualizó perfil de paciente",
+    LOGIN: "Inicio de sesión",
+    CREATE_USER: "Creó usuario",
+    UPDATE_USER: "Actualizó usuario",
+    DELETE_USER: "Eliminó usuario",
   };
 
   // ─── PSICÓLOGOS ─────────────────────────────────────────────────────────
@@ -611,23 +621,51 @@ export default function AdminDashboard() {
           {/* AUDITORÍA TAB */}
           <TabsContent value="auditoria" className="mt-6">
             <div className="glass-panel rounded-[2rem] overflow-hidden shadow-lg border">
-              <div className="p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-border/50 bg-white/40">
-                <div>
-                  <h2 className="text-xl font-display font-semibold">Auditoría del Sistema</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">Registro de acciones sensibles realizadas en el sistema.</p>
+              <div className="p-6 border-b border-border/50 bg-white/40">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                  <div>
+                    <h2 className="text-xl font-display font-semibold">Auditoría del Sistema</h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">Registro de acciones sensibles realizadas en el sistema.</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="rounded-full self-start" onClick={() => { setAuditActionFilter(''); setAuditActorIdFilter(''); setAuditFromFilter(''); setAuditToFilter(''); setAuditPage(0); }}>
+                    Limpiar filtros
+                  </Button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Select value={auditActionFilter} onValueChange={v => { setAuditActionFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
-                    <SelectTrigger className="w-[220px] rounded-full bg-white">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                  <Select value={auditActionFilter || 'all'} onValueChange={v => { setAuditActionFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
+                    <SelectTrigger className="rounded-full bg-white">
                       <SelectValue placeholder="Filtrar por acción" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas las acciones</SelectItem>
-                      <SelectItem value="UPDATE_OWN_PROFILE">Actualización de perfil propio</SelectItem>
+                      <SelectItem value="LOGIN">Inicio de sesión</SelectItem>
+                      <SelectItem value="UPDATE_OWN_PROFILE">Actualización perfil propio</SelectItem>
                       <SelectItem value="VIEW_PATIENT_PROFILE">Visualización de perfil</SelectItem>
-                      <SelectItem value="ADMIN_UPDATE_PATIENT_PROFILE">Actualización admin de perfil</SelectItem>
+                      <SelectItem value="ADMIN_UPDATE_PATIENT_PROFILE">Actualización admin perfil</SelectItem>
+                      <SelectItem value="CREATE_USER">Creación de usuario</SelectItem>
+                      <SelectItem value="UPDATE_USER">Actualización de usuario</SelectItem>
+                      <SelectItem value="DELETE_USER">Eliminación de usuario</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={auditActorIdFilter || 'all'} onValueChange={v => { setAuditActorIdFilter(v === 'all' ? '' : v); setAuditPage(0); }}>
+                    <SelectTrigger className="rounded-full bg-white">
+                      <SelectValue placeholder="Filtrar por usuario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los usuarios</SelectItem>
+                      {(users ?? []).map(u => (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.name || u.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground pl-1">Desde</Label>
+                    <Input type="date" className="rounded-full bg-white h-9 text-sm" value={auditFromFilter} onChange={e => { setAuditFromFilter(e.target.value); setAuditPage(0); }} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground pl-1">Hasta</Label>
+                    <Input type="date" className="rounded-full bg-white h-9 text-sm" value={auditToFilter} onChange={e => { setAuditToFilter(e.target.value); setAuditPage(0); }} />
+                  </div>
                 </div>
               </div>
 

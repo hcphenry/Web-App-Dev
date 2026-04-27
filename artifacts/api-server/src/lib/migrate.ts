@@ -123,6 +123,22 @@ export async function runMigrations() {
 
     await client.query("COMMIT");
 
+    // PHASE 3: Add FK constraint to audit_logs.actor_id → users.id (idempotent)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'audit_logs_actor_id_fkey'
+            AND table_name = 'audit_logs'
+        ) THEN
+          ALTER TABLE audit_logs
+            ADD CONSTRAINT audit_logs_actor_id_fkey
+            FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END $$
+    `);
+
     console.log("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
