@@ -53,17 +53,15 @@ router.get("/patient/profile", requireAuth, async (req, res) => {
     .where(eq(patientProfilesTable.userId, userId))
     .limit(1);
 
-  if (profiles.length > 0) {
-    await logAudit({
-      actorId: userId,
-      actorName: actor?.name ?? null,
-      action: "VIEW_OWN_PROFILE",
-      targetTable: "patient_profiles",
-      targetId: profiles[0].id,
-      ipAddress: ip,
-      details: { userId },
-    });
-  }
+  await logAudit({
+    actorId: userId,
+    actorName: actor?.name ?? null,
+    action: "VIEW_OWN_PROFILE",
+    targetTable: "patient_profiles",
+    targetId: profiles[0]?.id ?? null,
+    ipAddress: ip,
+    details: { userId, profileExists: profiles.length > 0 },
+  });
 
   res.json(profiles[0] ?? null);
 });
