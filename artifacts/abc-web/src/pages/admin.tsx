@@ -249,6 +249,7 @@ export default function AdminDashboard() {
     setLoadingPatientProfile(true);
     try {
       const res = await fetch(`/api/admin/patients/${user.id}/profile`);
+      if (!res.ok) throw new Error(`Error al cargar perfil (${res.status})`);
       const data = await res.json();
       if (data) setPatientProfile(data);
     } catch (_) {} finally {
