@@ -200,6 +200,13 @@ export async function runMigrations() {
       END $$
     `);
 
+    // PHASE 6: Add performance indexes on audit_logs filter/sort columns (idempotent)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
+    `);
+
     console.log("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
