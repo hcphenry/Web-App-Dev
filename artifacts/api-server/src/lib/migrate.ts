@@ -139,7 +139,7 @@ export async function runMigrations() {
       END $$
     `);
 
-    // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (idempotent)
+    // PHASE 4: Migrate audit_logs.details from TEXT to JSONB (idempotent, safe)
     await client.query(`
       DO $$
       BEGIN
@@ -149,6 +149,12 @@ export async function runMigrations() {
             AND column_name = 'details'
             AND data_type = 'text'
         ) THEN
+          -- Nullify any rows whose details value is not valid JSON before converting
+          UPDATE audit_logs
+            SET details = NULL
+            WHERE details IS NOT NULL
+              AND details <> ''
+              AND NOT (details ~ E'^[{\\["]|^null$|^true$|^false$|^-?[0-9]');
           ALTER TABLE audit_logs
             ALTER COLUMN details TYPE JSONB USING NULLIF(details, '')::jsonb;
         END IF;
