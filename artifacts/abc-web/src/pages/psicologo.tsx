@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users } from "lucide-react";
 
 interface AvailabilitySlot {
   id: number;
@@ -38,6 +38,35 @@ interface PsychologistProfile {
   licenseNumber: string | null;
 }
 
+interface AssignedPatient {
+  profileId: number;
+  userId: number;
+  apellidoPaterno: string | null;
+  apellidoMaterno: string | null;
+  perioricidad: string | null;
+  fechaAlta: string | null;
+  estado: string | null;
+  nroCelular: string | null;
+  costoTerapia: string | null;
+  psicologaAsignada: string | null;
+  userName: string;
+  userEmail: string;
+}
+
+interface PatientFullProfile extends AssignedPatient {
+  tipoDocumento: string | null;
+  numeroDocumento: string | null;
+  fechaNacimiento: string | null;
+  sexo: string | null;
+  direccion: string | null;
+  distrito: string | null;
+  ciudad: string | null;
+  departamento: string | null;
+  pais: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const BASE = "/api";
 
 async function fetchProfile(): Promise<PsychologistProfile> {
@@ -52,6 +81,18 @@ async function fetchAvailability(): Promise<AvailabilitySlot[]> {
   return res.json();
 }
 
+async function fetchMyPatients(): Promise<AssignedPatient[]> {
+  const res = await fetch(`${BASE}/psicologo/patients`);
+  if (!res.ok) throw new Error("Error al cargar pacientes");
+  return res.json();
+}
+
+async function fetchPatientProfile(userId: number): Promise<PatientFullProfile> {
+  const res = await fetch(`${BASE}/psicologo/patients/${userId}/profile`);
+  if (!res.ok) throw new Error("Error al cargar perfil del paciente");
+  return res.json();
+}
+
 export default function PsicologoDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -59,6 +100,15 @@ export default function PsicologoDashboard() {
 
   const { data: profile, isLoading: loadingProfile } = useQuery({ queryKey: ["psicologo-profile"], queryFn: fetchProfile });
   const { data: slots = [], isLoading: loadingSlots } = useQuery({ queryKey: ["psicologo-availability"], queryFn: fetchAvailability });
+  const { data: myPatients = [], isLoading: loadingPatients } = useQuery({ queryKey: ["psicologo-patients"], queryFn: fetchMyPatients });
+
+  // Patient modal state
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const { data: selectedPatientProfile, isLoading: loadingPatientProfile } = useQuery({
+    queryKey: ["psicologo-patient-profile", selectedPatientId],
+    queryFn: () => fetchPatientProfile(selectedPatientId!),
+    enabled: selectedPatientId !== null,
+  });
 
   // Slot form state
   const [slotModalOpen, setSlotModalOpen] = useState(false);
@@ -197,12 +247,15 @@ export default function PsicologoDashboard() {
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full max-w-xl grid-cols-3 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
             <TabsTrigger value="profile" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Perfil
             </TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <CalendarDays className="w-4 h-4 mr-2" /> Disponibilidad
+            </TabsTrigger>
+            <TabsTrigger value="patients" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Users className="w-4 h-4 mr-2" /> Mis Pacientes
             </TabsTrigger>
             <TabsTrigger value="account" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
@@ -279,6 +332,62 @@ export default function PsicologoDashboard() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── MIS PACIENTES ── */}
+          <TabsContent value="patients">
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">Mis Pacientes</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Pacientes asignados a tu consulta. Haz clic en un paciente para ver su perfil clínico completo.</p>
+              </div>
+              {loadingPatients ? (
+                <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : myPatients.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-12 text-center border border-dashed">
+                  <Users className="w-12 h-12 text-primary/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground">No tienes pacientes asignados actualmente.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {myPatients.map(patient => (
+                    <button
+                      key={patient.userId}
+                      onClick={() => setSelectedPatientId(patient.userId)}
+                      className="glass-panel rounded-xl p-4 border text-left hover:shadow-md hover:border-primary/30 transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                          <UserCircle className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm text-foreground truncate">
+                            {patient.userName}
+                            {(patient.apellidoPaterno || patient.apellidoMaterno) && (
+                              <span className="font-normal text-muted-foreground"> {[patient.apellidoPaterno, patient.apellidoMaterno].filter(Boolean).join(" ")}</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{patient.userEmail}</p>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {patient.estado && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${patient.estado === "activo" ? "bg-green-100 text-green-700" : patient.estado === "inactivo" ? "bg-gray-100 text-gray-600" : "bg-yellow-100 text-yellow-700"}`}>
+                                {patient.estado}
+                              </span>
+                            )}
+                            {patient.perioricidad && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{patient.perioricidad}</span>
+                            )}
+                            {patient.costoTerapia && (
+                              <span className="text-xs text-muted-foreground">S/ {patient.costoTerapia}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -380,6 +489,67 @@ export default function PsicologoDashboard() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: Perfil Clínico del Paciente */}
+      <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) setSelectedPatientId(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" /> Perfil Clínico del Paciente
+            </DialogTitle>
+          </DialogHeader>
+          {loadingPatientProfile ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : selectedPatientProfile ? (
+            <div className="space-y-4 mt-2 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="flex items-center gap-3 pb-3 border-b border-border/50">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <UserCircle className="w-7 h-7 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold">
+                    {selectedPatientProfile.userName}
+                    {(selectedPatientProfile.apellidoPaterno || selectedPatientProfile.apellidoMaterno) && (
+                      <> {[selectedPatientProfile.apellidoPaterno, selectedPatientProfile.apellidoMaterno].filter(Boolean).join(" ")}</>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedPatientProfile.userEmail}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <InfoField label="Estado" value={selectedPatientProfile.estado} />
+                <InfoField label="Perioricidad" value={selectedPatientProfile.perioricidad} />
+                <InfoField label="Costo de Terapia" value={selectedPatientProfile.costoTerapia ? `S/ ${selectedPatientProfile.costoTerapia}` : null} />
+                <InfoField label="Fecha de Alta" value={selectedPatientProfile.fechaAlta} />
+                <InfoField label="Celular" value={selectedPatientProfile.nroCelular} />
+                <InfoField label="Fecha de Nacimiento" value={selectedPatientProfile.fechaNacimiento} />
+                <InfoField label="Sexo" value={selectedPatientProfile.sexo} />
+                <InfoField label="Tipo de Documento" value={selectedPatientProfile.tipoDocumento} />
+                <InfoField label="Número de Documento" value={selectedPatientProfile.numeroDocumento} />
+                <InfoField label="País" value={selectedPatientProfile.pais} />
+              </div>
+
+              {(selectedPatientProfile.direccion || selectedPatientProfile.distrito || selectedPatientProfile.ciudad || selectedPatientProfile.departamento) && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dirección</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InfoField label="Dirección" value={selectedPatientProfile.direccion} />
+                    <InfoField label="Distrito" value={selectedPatientProfile.distrito} />
+                    <InfoField label="Ciudad" value={selectedPatientProfile.ciudad} />
+                    <InfoField label="Departamento" value={selectedPatientProfile.departamento} />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-6 text-center">No se pudo cargar el perfil.</p>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setSelectedPatientId(null)} className="rounded-xl w-full">Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

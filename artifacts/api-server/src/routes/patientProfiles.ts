@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
-import { eq, desc, and, gte, lte, count, type SQL } from "drizzle-orm";
+import { eq, desc, and, gte, lte, count, ilike, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 // ─── Validation schemas ────────────────────────────────────────────────────
@@ -54,6 +54,18 @@ function requireAdmin(req: any, res: any, next: any) {
     return;
   }
   if (req.session.userRole !== "admin") {
+    res.status(403).json({ error: "Acceso denegado" });
+    return;
+  }
+  next();
+}
+
+function requirePsicologo(req: any, res: any, next: any) {
+  if (!req.session?.userId) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+  if (req.session.userRole !== "psicologo" && req.session.userRole !== "admin") {
     res.status(403).json({ error: "Acceso denegado" });
     return;
   }
@@ -167,6 +179,119 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
   });
 
   res.json(profile);
+});
+
+// ─── PSICÓLOGO: Pacientes asignados ──────────────────────────────────────
+
+router.get("/psicologo/patients", requirePsicologo, async (req, res) => {
+  const actorId = req.session!.userId!;
+
+  const [actor] = await db
+    .select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, actorId))
+    .limit(1);
+
+  if (!actor) {
+    res.status(404).json({ error: "Psicólogo no encontrado" });
+    return;
+  }
+
+  const patients = await db
+    .select({
+      profileId: patientProfilesTable.id,
+      userId: patientProfilesTable.userId,
+      apellidoPaterno: patientProfilesTable.apellidoPaterno,
+      apellidoMaterno: patientProfilesTable.apellidoMaterno,
+      perioricidad: patientProfilesTable.perioricidad,
+      fechaAlta: patientProfilesTable.fechaAlta,
+      estado: patientProfilesTable.estado,
+      nroCelular: patientProfilesTable.nroCelular,
+      costoTerapia: patientProfilesTable.costoTerapia,
+      psicologaAsignada: patientProfilesTable.psicologaAsignada,
+      userName: usersTable.name,
+      userEmail: usersTable.email,
+    })
+    .from(patientProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, patientProfilesTable.userId))
+    .where(ilike(patientProfilesTable.psicologaAsignada, actor.name));
+
+  res.json(patients);
+});
+
+router.get("/psicologo/patients/:id/profile", requirePsicologo, async (req, res) => {
+  const patientUserId = parseInt(req.params.id);
+  if (isNaN(patientUserId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const actorId = req.session!.userId!;
+  const ip = req.ip || req.socket?.remoteAddress || null;
+
+  const [actor] = await db
+    .select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, actorId))
+    .limit(1);
+
+  if (!actor) {
+    res.status(404).json({ error: "Psicólogo no encontrado" });
+    return;
+  }
+
+  const [patient] = await db
+    .select({
+      profileId: patientProfilesTable.id,
+      userId: patientProfilesTable.userId,
+      apellidoPaterno: patientProfilesTable.apellidoPaterno,
+      apellidoMaterno: patientProfilesTable.apellidoMaterno,
+      perioricidad: patientProfilesTable.perioricidad,
+      fechaAlta: patientProfilesTable.fechaAlta,
+      estado: patientProfilesTable.estado,
+      nroCelular: patientProfilesTable.nroCelular,
+      tipoDocumento: patientProfilesTable.tipoDocumento,
+      numeroDocumento: patientProfilesTable.numeroDocumento,
+      fechaNacimiento: patientProfilesTable.fechaNacimiento,
+      sexo: patientProfilesTable.sexo,
+      direccion: patientProfilesTable.direccion,
+      distrito: patientProfilesTable.distrito,
+      ciudad: patientProfilesTable.ciudad,
+      departamento: patientProfilesTable.departamento,
+      pais: patientProfilesTable.pais,
+      costoTerapia: patientProfilesTable.costoTerapia,
+      psicologaAsignada: patientProfilesTable.psicologaAsignada,
+      createdAt: patientProfilesTable.createdAt,
+      updatedAt: patientProfilesTable.updatedAt,
+      userName: usersTable.name,
+      userEmail: usersTable.email,
+    })
+    .from(patientProfilesTable)
+    .innerJoin(usersTable, eq(usersTable.id, patientProfilesTable.userId))
+    .where(
+      and(
+        eq(patientProfilesTable.userId, patientUserId),
+        ilike(patientProfilesTable.psicologaAsignada, actor.name)
+      )
+    )
+    .limit(1);
+
+  if (!patient) {
+    res.status(404).json({ error: "Paciente no encontrado o no asignado a este psicólogo" });
+    return;
+  }
+
+  await logAudit({
+    actorId,
+    actorName: actor.name ?? null,
+    action: "VIEW_PATIENT_PROFILE",
+    targetTable: "patient_profiles",
+    targetId: patient.profileId,
+    ipAddress: ip,
+    details: { patientUserId, actor: "psicologo" },
+  });
+
+  res.json({ ...patient, createdAt: patient.createdAt.toISOString(), updatedAt: patient.updatedAt.toISOString() });
 });
 
 // ─── ADMIN: Patient profiles ──────────────────────────────────────────────
