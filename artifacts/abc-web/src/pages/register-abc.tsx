@@ -74,7 +74,7 @@ export default function RegisterAbc() {
       setLoadingProfile(true);
       fetch('/api/patient/profile')
         .then(r => { if (!r.ok) throw new Error("Error al cargar perfil"); return r.json(); })
-        .then(data => { if (data) setProfile(data); })
+        .then(data => { setProfile(data ?? {}); })
         .catch(() => {})
         .finally(() => setLoadingProfile(false));
     }

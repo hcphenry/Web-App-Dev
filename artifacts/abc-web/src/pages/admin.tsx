@@ -283,6 +283,7 @@ export default function AdminDashboard() {
   const [auditActorIdFilter, setAuditActorIdFilter] = useState('');
   const [auditFromFilter, setAuditFromFilter] = useState('');
   const [auditToFilter, setAuditToFilter] = useState('');
+  const [activeTab, setActiveTab] = useState('users');
   const [auditPage, setAuditPage] = useState(0);
   const AUDIT_LIMIT = 25;
 
@@ -301,6 +302,7 @@ export default function AdminDashboard() {
       return res.json();
     },
     staleTime: 0,
+    enabled: activeTab === 'auditoria',
   });
   const auditLogs = auditData?.logs ?? [];
   const auditTotal = auditData?.total ?? 0;
@@ -398,7 +400,7 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground mt-1">Gestiona usuarios y revisa todos los registros emocionales del sistema.</p>
         </div>
 
-        <Tabs defaultValue="users" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full max-w-3xl grid-cols-5 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="users" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Users className="w-4 h-4 mr-1.5" /> Usuarios
