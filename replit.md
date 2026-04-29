@@ -38,12 +38,21 @@ artifacts-monorepo/
 
 ### User Flow
 - Login page at `/login` with email/password
-- ABC guided wizard at `/register-abc`:
+- Patient lands on **Task Dashboard** at `/register-abc` (default view: `'dashboard'`):
+  - Welcome banner with user greeting
+  - Task cards rendered via `.map()` over `therapeuticTasks` array (scalable)
+  - "Registro ABC" card: available, indigo/purple gradient, click opens ABC form
+  - "La Rueda de la Vida" card: placeholder/disabled, shows lock icon
+  - Quick access link to history
+- ABC guided wizard (activated from dashboard card):
   - Step 1: A - Situación/Estímulo (objective description of what happened)
   - Step 2: B - Pensamientos Automáticos (automatic thoughts)
   - Step 3: C - Emoción y Conducta (emotion name, intensity 1-10, behavior)
   - Step 4: Reflexión cognitiva (optional alternative thought)
-- View past records
+  - Step 5: Summary review before submit
+  - Step 1 "Inicio" button returns to dashboard; steps 2-5 have "Atrás"
+- View past records (History view)
+- Navigation bar: Inicio | Historial | Mi Cuenta
 
 ### Admin View
 - Dashboard at `/admin` (5 tabs)

@@ -22,7 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, ArrowLeft, CheckCircle2, MessageCircle, 
-  BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2, Save
+  BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2, Save,
+  Home, Lock, ChevronRight, LayoutDashboard, Circle
 } from "lucide-react";
 
 interface PatientProfile {
@@ -49,7 +50,7 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'form' | 'history' | 'account'>('form');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account'>('dashboard');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -191,6 +192,32 @@ export default function RegisterAbc() {
     { num: 5, title: "Resumen", icon: CheckCircle2 },
   ];
 
+  // Array de tareas terapéuticas — agregar nuevas tareas aquí fácilmente
+  const therapeuticTasks = [
+    {
+      id: 'registro-abc',
+      title: 'Registro ABC',
+      description: 'Identifica situaciones, pensamientos automáticos y sus consecuencias emocionales.',
+      icon: BrainCircuit,
+      available: true,
+      color: 'from-indigo-500 to-purple-600',
+      badgeColor: 'bg-indigo-100 text-indigo-700',
+      badge: 'Disponible',
+      onActivate: () => { resetForm(); setView('form'); },
+    },
+    {
+      id: 'rueda-vida',
+      title: 'La Rueda de la Vida',
+      description: 'Evalúa el equilibrio en las distintas áreas de tu vida personal y profesional.',
+      icon: Circle,
+      available: false,
+      color: 'from-slate-300 to-slate-400',
+      badgeColor: 'bg-slate-100 text-slate-500',
+      badge: 'Próximamente',
+      onActivate: () => {},
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -198,16 +225,40 @@ export default function RegisterAbc() {
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Registro ABC</h1>
-            <p className="text-muted-foreground mt-1">Identifica y gestiona tus reacciones emocionales</p>
+            {view === 'dashboard' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">
+                  Hola{me?.email ? ', ' + me.email.split('@')[0] : ''} 👋
+                </h1>
+                <p className="text-muted-foreground mt-1">Aquí están tus tareas terapéuticas</p>
+              </>
+            )}
+            {view === 'form' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Registro ABC</h1>
+                <p className="text-muted-foreground mt-1">Identifica y gestiona tus reacciones emocionales</p>
+              </>
+            )}
+            {view === 'history' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Historial</h1>
+                <p className="text-muted-foreground mt-1">Tus registros ABC anteriores</p>
+              </>
+            )}
+            {view === 'account' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Mi Cuenta</h1>
+                <p className="text-muted-foreground mt-1">Gestiona tu perfil y configuración</p>
+              </>
+            )}
           </div>
           <div className="flex gap-2">
             <Button
-              variant={view === 'form' ? "default" : "outline"}
-              onClick={() => setView('form')}
+              variant={view === 'dashboard' ? "default" : "outline"}
+              onClick={() => setView('dashboard')}
               className="rounded-full shadow-sm"
             >
-              <FileText className="w-4 h-4 mr-2" /> Nuevo Registro
+              <Home className="w-4 h-4 mr-2" /> Inicio
             </Button>
             <Button
               variant={view === 'history' ? "default" : "outline"}
@@ -225,6 +276,90 @@ export default function RegisterAbc() {
             </Button>
           </div>
         </div>
+
+        {/* ── DASHBOARD VIEW ── */}
+        {view === 'dashboard' && me && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+            {/* Sección de bienvenida */}
+            <div className="glass-panel rounded-2xl p-6 border bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <LayoutDashboard className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-indigo-600 uppercase tracking-wider">Panel Terapéutico</p>
+                  <h2 className="text-xl font-display font-semibold text-foreground">Tus Tareas Asignadas</h2>
+                  <p className="text-sm text-muted-foreground">Selecciona una tarea para comenzar tu sesión de hoy</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Grid de tarjetas de tareas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {therapeuticTasks.map((task) => {
+                const TaskIcon = task.icon;
+                return (
+                  <div
+                    key={task.id}
+                    onClick={task.available ? task.onActivate : undefined}
+                    className={`group relative glass-panel rounded-2xl border overflow-hidden transition-all duration-300 ${
+                      task.available
+                        ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200'
+                        : 'cursor-not-allowed opacity-70'
+                    }`}
+                  >
+                    {/* Barra de color superior */}
+                    <div className={`h-1.5 w-full bg-gradient-to-r ${task.color}`} />
+
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${task.color} flex items-center justify-center shadow-sm`}>
+                          <TaskIcon className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${task.badgeColor}`}>
+                            {task.badge}
+                          </span>
+                          {!task.available && <Lock className="w-4 h-4 text-slate-400" />}
+                        </div>
+                      </div>
+
+                      <h3 className="text-lg font-display font-bold text-foreground mb-1">{task.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
+
+                      {task.available && (
+                        <div className="mt-5 flex items-center text-sm font-semibold text-indigo-600 group-hover:text-indigo-700 transition-colors">
+                          Comenzar tarea
+                          <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Acceso rápido al historial */}
+            <div className="glass-panel rounded-2xl border p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+                  <History className="w-5 h-5 text-teal-700" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">Historial de Registros</p>
+                  <p className="text-sm text-muted-foreground">Revisa tus registros anteriores</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setView('history')}
+                className="rounded-xl shadow-sm"
+              >
+                Ver historial <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {view === 'history' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -785,14 +920,25 @@ export default function RegisterAbc() {
 
               {/* Navigation Buttons */}
               <div className="mt-8 pt-6 border-t border-border flex justify-between">
-                <Button 
-                  variant="outline" 
-                  onClick={prevStep}
-                  disabled={step === 1 || createMut.isPending}
-                  className="rounded-xl px-6 h-12"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" /> Atrás
-                </Button>
+                {step === 1 ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setView('dashboard')}
+                    disabled={createMut.isPending}
+                    className="rounded-xl px-6 h-12"
+                  >
+                    <Home className="w-4 h-4 mr-2" /> Inicio
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    onClick={prevStep}
+                    disabled={createMut.isPending}
+                    className="rounded-xl px-6 h-12"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Atrás
+                  </Button>
+                )}
 
                 {step < 5 ? (
                   <Button 
