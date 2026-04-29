@@ -204,6 +204,7 @@ export default function RegisterAbc() {
       badgeColor: 'bg-indigo-100 text-indigo-700',
       badge: 'Disponible',
       onActivate: () => { resetForm(); setView('form'); },
+      onViewHistory: () => setView('history'),
     },
     {
       id: 'rueda-vida',
@@ -215,6 +216,7 @@ export default function RegisterAbc() {
       badgeColor: 'bg-slate-100 text-slate-500',
       badge: 'Próximamente',
       onActivate: () => {},
+      onViewHistory: undefined,
     },
   ];
 
@@ -301,11 +303,10 @@ export default function RegisterAbc() {
                 return (
                   <div
                     key={task.id}
-                    onClick={task.available ? task.onActivate : undefined}
                     className={`group relative glass-panel rounded-2xl border overflow-hidden transition-all duration-300 ${
                       task.available
-                        ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200'
-                        : 'cursor-not-allowed opacity-70'
+                        ? 'hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200'
+                        : 'opacity-70'
                     }`}
                   >
                     {/* Barra de color superior */}
@@ -328,35 +329,32 @@ export default function RegisterAbc() {
                       <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
 
                       {task.available && (
-                        <div className="mt-5 flex items-center text-sm font-semibold text-indigo-600 group-hover:text-indigo-700 transition-colors">
-                          Comenzar tarea
-                          <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        <div className="mt-5 pt-4 border-t border-border/50 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={task.onActivate}
+                            className="rounded-xl flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
+                          >
+                            Comenzar tarea
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                          {task.onViewHistory && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={task.onViewHistory}
+                              className="rounded-xl flex-1"
+                            >
+                              <History className="w-4 h-4 mr-1.5" />
+                              Ver historial
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
                   </div>
                 );
               })}
-            </div>
-
-            {/* Acceso rápido al historial */}
-            <div className="glass-panel rounded-2xl border p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-                  <History className="w-5 h-5 text-teal-700" />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Historial de Registros</p>
-                  <p className="text-sm text-muted-foreground">Revisa tus registros anteriores</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setView('history')}
-                className="rounded-xl shadow-sm"
-              >
-                Ver historial <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
             </div>
           </div>
         )}
