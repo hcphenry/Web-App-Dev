@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { format, parseISO, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
@@ -143,6 +143,14 @@ export default function AdminDashboard() {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingRole, setEditingRole] = useState<"admin" | "user">("user");
+  const [assignedPsicologoId, setAssignedPsicologoId] = useState<string>("none");
+  const [originalAssignedName, setOriginalAssignedName] = useState<string | null>(null);
+  // Track whether the admin actually touched the "Psicólogo Asignado" field.
+  // Without this, a slow `psicologos` query can leave the Select at its default
+  // value while `originalAssignedName` is already set, which would otherwise
+  // trigger a silent un-assign on save.
+  const assignmentTouchedRef = useRef(false);
 
   // Account change state
   const [emailForm, setEmailForm] = useState({ email: '', currentPassword: '' });
@@ -193,24 +201,94 @@ export default function AdminDashboard() {
   // Actions
   const openCreateModal = () => {
     setEditingUser(null);
+    setEditingRole("user");
+    setAssignedPsicologoId("none");
+    setOriginalAssignedName(null);
+    assignmentTouchedRef.current = false;
     reset({ name: "", email: "", password: "", role: "user" });
     setUserModalOpen(true);
   };
 
-  const openEditModal = (user: User) => {
+  const openEditModal = async (user: User) => {
     setEditingUser(user);
+    setEditingRole(user.role as "admin" | "user");
+    setAssignedPsicologoId("none");
+    setOriginalAssignedName(null);
+    assignmentTouchedRef.current = false;
     reset({ name: user.name, email: user.email, password: "", role: user.role });
     setUserModalOpen(true);
+    // For patients, pre-load currently assigned psychologist (if any).
+    // Preselection of the dropdown by name happens in a useEffect once
+    // both the profile and the psicologos list are available.
+    if (user.role === "user") {
+      try {
+        const res = await fetch(`/api/admin/patients/${user.id}/profile`);
+        if (res.ok) {
+          const profile = await res.json();
+          const currentName = (profile?.psicologaAsignada ?? null) as string | null;
+          setOriginalAssignedName(currentName);
+        }
+      } catch {
+        // Silent: form remains usable; assignment defaults to "none"
+      }
+    }
+  };
+
+  const assignPsicologo = async (patientId: number, psicologoIdRaw: string) => {
+    const body =
+      psicologoIdRaw === "none"
+        ? { psicologoId: null }
+        : { psicologoId: Number(psicologoIdRaw) };
+    const res = await fetch(`/api/admin/patients/${patientId}/assign-psychologist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error || "Error al asignar psicólogo");
+    }
   };
 
   const onUserSubmit = (data: z.infer<typeof userSchema>) => {
     if (editingUser) {
       const updateData = { ...data };
       if (!updateData.password) delete updateData.password;
-      updateMut.mutate({ id: editingUser.id, data: updateData });
+      updateMut.mutate(
+        { id: editingUser.id, data: updateData },
+        {
+          onSuccess: async () => {
+            // Only persist the assignment if the admin actually changed it.
+            // This avoids silently un-assigning when the psicologos list was
+            // still loading at the moment the modal opened.
+            if (data.role === "user" && assignmentTouchedRef.current) {
+              try {
+                await assignPsicologo(editingUser.id, assignedPsicologoId);
+                queryClient.invalidateQueries({ queryKey: ["admin-psicologos"] });
+              } catch (e: any) {
+                toast({ variant: "destructive", title: "Asignación de psicólogo falló", description: e.message });
+              }
+            }
+          },
+        }
+      );
     } else {
       if (!data.password) { toast({ variant: "destructive", title: "Contraseña requerida" }); return; }
-      createMut.mutate({ data: data as any });
+      createMut.mutate(
+        { data: data as any },
+        {
+          onSuccess: async (created: any) => {
+            // If a patient was just created with an assigned psychologist, link them.
+            if (data.role === "user" && assignedPsicologoId !== "none" && created?.id) {
+              try {
+                await assignPsicologo(created.id, assignedPsicologoId);
+              } catch (e: any) {
+                toast({ variant: "destructive", title: "Asignación de psicólogo falló", description: e.message });
+              }
+            }
+          },
+        }
+      );
     }
   };
 
@@ -445,6 +523,21 @@ export default function AdminDashboard() {
       return res.json();
     },
   });
+
+  // Resolve the original psicologa name to a psicologo id whenever the list
+  // becomes available (or changes). Also re-runs when the role toggles back to
+  // "user" so the dropdown is restored to its persisted value. Only runs while
+  // the modal is open and the user has not manually touched the field, so we
+  // never overwrite admin input.
+  useEffect(() => {
+    if (!userModalOpen) return;
+    if (editingRole !== "user") return;
+    if (assignmentTouchedRef.current) return;
+    if (!originalAssignedName) return;
+    if (psicologos.length === 0) return;
+    const match = psicologos.find((p) => p.name === originalAssignedName);
+    if (match) setAssignedPsicologoId(String(match.id));
+  }, [userModalOpen, editingRole, originalAssignedName, psicologos]);
 
   const createPsicologoMut = useMutation({
     mutationFn: async (data: any) => {
@@ -1321,7 +1414,19 @@ export default function AdminDashboard() {
 
             <div className="space-y-2 pb-2">
               <Label>Rol del Sistema</Label>
-              <Select onValueChange={(v) => setValue("role", v as "admin" | "user")} defaultValue={editingUser?.role || "user"}>
+              <Select
+                value={editingRole}
+                onValueChange={(v) => {
+                  const role = v as "admin" | "user";
+                  setEditingRole(role);
+                  setValue("role", role);
+                  // Don't reset assignedPsicologoId when hiding the field —
+                  // keep the existing selection so toggling role back to "user"
+                  // restores the dropdown without a flash of "Sin asignar".
+                  // The field is conditionally hidden, and onUserSubmit only
+                  // POSTs the assignment when role === "user".
+                }}
+              >
                 <SelectTrigger className="rounded-xl bg-secondary/30">
                   <SelectValue placeholder="Selecciona un rol" />
                 </SelectTrigger>
@@ -1331,6 +1436,41 @@ export default function AdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            {editingRole === "user" && (
+              <div className="space-y-2 pb-2">
+                <Label>Psicólogo Asignado</Label>
+                <Select
+                  value={assignedPsicologoId}
+                  onValueChange={(v) => {
+                    assignmentTouchedRef.current = true;
+                    setAssignedPsicologoId(v);
+                  }}
+                >
+                  <SelectTrigger className="rounded-xl bg-secondary/30">
+                    <SelectValue placeholder="Sin asignar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sin asignar —</SelectItem>
+                    {psicologos.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {originalAssignedName && assignedPsicologoId === "none" && (
+                  <p className="text-xs text-muted-foreground">
+                    Actualmente: <strong>{originalAssignedName}</strong> (selecciona "Sin asignar" y guarda para desasignar)
+                  </p>
+                )}
+                {psicologos.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No hay psicólogos registrados aún. Registra uno en la pestaña "Psicólogos".
+                  </p>
+                )}
+              </div>
+            )}
 
             <DialogFooter className="pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => setUserModalOpen(false)} className="rounded-xl">Cancelar</Button>

@@ -424,6 +424,59 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
   res.json(profile);
 });
 
+// ─── ADMIN: Assign psychologist to a patient ──────────────────────────────
+// Body: { psicologoId: number | null }
+// Stores the psychologist's display name in patient_profiles.psicologa_asignada
+// (creates the profile row if it doesn't exist yet).
+router.post("/admin/patients/:id/assign-psychologist", requireAdmin, async (req, res) => {
+  const patientId = parseInt(req.params.id);
+  if (isNaN(patientId)) { res.status(400).json({ error: "ID de paciente inválido" }); return; }
+
+  const [targetUser] = await db.select({ role: usersTable.role, name: usersTable.name })
+    .from(usersTable).where(eq(usersTable.id, patientId)).limit(1);
+  if (!targetUser) { res.status(404).json({ error: "Usuario no encontrado" }); return; }
+  if (targetUser.role !== "user") { res.status(400).json({ error: "Solo se puede asignar psicólogo a un paciente" }); return; }
+
+  const psicologoId = req.body?.psicologoId;
+  let psicologaName: string | null = null;
+
+  if (psicologoId !== null && psicologoId !== undefined && psicologoId !== "") {
+    const pid = Number(psicologoId);
+    if (!Number.isFinite(pid)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
+    const [psi] = await db.select({ name: usersTable.name, role: usersTable.role })
+      .from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+    if (!psi) { res.status(404).json({ error: "Psicólogo no encontrado" }); return; }
+    if (psi.role !== "psicologo") { res.status(400).json({ error: "El usuario seleccionado no es un psicólogo" }); return; }
+    psicologaName = psi.name;
+  }
+
+  const actorId = req.session!.userId!;
+  const ip = req.ip || req.socket?.remoteAddress || null;
+  const [actor] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, actorId)).limit(1);
+
+  // Atomic upsert keyed on the unique (user_id) constraint to avoid races
+  // when two requests target the same patient simultaneously.
+  const [profile] = await db.insert(patientProfilesTable)
+    .values({ userId: patientId, psicologaAsignada: psicologaName })
+    .onConflictDoUpdate({
+      target: patientProfilesTable.userId,
+      set: { psicologaAsignada: psicologaName, updatedAt: new Date() },
+    })
+    .returning();
+
+  await logAudit({
+    actorId,
+    actorName: actor?.name ?? null,
+    action: "ASSIGN_PSYCHOLOGIST",
+    targetTable: "patient_profiles",
+    targetId: profile.id,
+    ipAddress: ip,
+    details: { patientId, patientName: targetUser.name, psicologaAsignada: psicologaName, psicologoId: psicologoId ?? null },
+  });
+
+  res.json({ ok: true, psicologaAsignada: psicologaName });
+});
+
 // ─── ADMIN: Dashboard stats ───────────────────────────────────────────────
 
 router.get("/admin/dashboard", requireAdmin, async (req, res) => {

@@ -135,6 +135,7 @@ All routes under `/api`:
 - `PUT /patient/profile` — Save/update own clinical profile (auth required, logs audit)
 - `GET /admin/patients/:id/profile` — View any patient's clinical profile (admin only, logs audit)
 - `PUT /admin/patients/:id/profile` — Update any patient's clinical profile (admin only, logs audit)
+- `POST /admin/patients/:id/assign-psychologist` — Assign/un-assign a registered psicólogo to a patient from the "Editar Usuario" modal. Body `{ psicologoId: number | null }`. Stores the psychologist's display name in `patient_profiles.psicologa_asignada` via atomic upsert (admin only, logs audit). Note: the field is currently text-based (matched by name elsewhere via ilike) — a follow-up is open to migrate to an FK.
 - `GET /admin/audit-logs` — Paginated audit log list with action/actor/date filters (admin only)
 - `POST /api/financiero/upload` — Upload bank statement .xlsx; auto-detects bank, dedups by hash (admin only)
 - `GET /api/financiero/transactions` — List with filters banco/usuarioId/search/from/to/montoMin/montoMax + pagination (admin only)
