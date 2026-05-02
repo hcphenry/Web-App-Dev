@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, addHours, setHours, setMinutes } from "date-fns";
 import { es } from "date-fns/locale";
-import { formatInTimeZone } from "date-fns-tz";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
@@ -156,15 +155,53 @@ export default function PsicologoDashboard() {
   const [deletingSlot, setDeletingSlot] = useState<AvailabilitySlot | null>(null);
   const [slotForm, setSlotForm] = useState({ startTime: "", endTime: "", notes: "", isAvailable: true });
 
-  // Week calendar state — anchored to Lima/GMT-5 "today".
-  // Calendar day objects are noon-UTC Dates whose date part equals the Lima date,
-  // so format(day, 'd'/'EEE') is correct in any reasonable browser timezone.
-  const LIMA_TZ = 'America/Lima';
+  // ── Lima/GMT-5 helpers — pure UTC arithmetic, zero external deps ─────────
+  // Lima is always UTC-5 with no DST. Strategy: subtract 5 h from the UTC
+  // timestamp to get a "shifted" Date, then read its *UTC* getters (never
+  // local getters, which depend on the browser timezone).
+  const LIMA_H = 5; // hours behind UTC
+
+  /** Noon-UTC Date representing Lima's current calendar date.
+   *  Use getUTC* methods on the result; never getHours/getDate. */
   const limaNoonToday = (): Date => {
-    const s = formatInTimeZone(new Date(), LIMA_TZ, 'yyyy-MM-dd');
-    const [y, m, d] = s.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    const shifted = new Date(Date.now() - LIMA_H * 3_600_000);
+    return new Date(Date.UTC(
+      shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 12, 0, 0,
+    ));
   };
+
+  /** "HH:mm" string for a UTC ISO string expressed in Lima timezone.
+   *  Works in any browser: reads getUTCHours() on the shifted timestamp. */
+  const limaHHmm = (isoUtc: string): string => {
+    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+  };
+
+  /** "YYYY-MM-DDTHH:mm" for a UTC ISO string in Lima timezone (for datetime-local inputs). */
+  const limaInputValue = (isoUtc: string): string => {
+    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+  };
+
+  /** True if the given noon-UTC calendar day matches Lima's current date. */
+  const isTodayGMT5 = (day: Date): boolean => {
+    const shifted = new Date(Date.now() - LIMA_H * 3_600_000);
+    return day.getUTCFullYear() === shifted.getUTCFullYear()
+      && day.getUTCMonth()    === shifted.getUTCMonth()
+      && day.getUTCDate()     === shifted.getUTCDate();
+  };
+
+  /** True if a UTC ISO slot falls on this calendar day (Lima date). */
+  const isSlotOnDay = (isoUtc: string, day: Date): boolean => {
+    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
+    return day.getUTCFullYear() === shifted.getUTCFullYear()
+      && day.getUTCMonth()    === shifted.getUTCMonth()
+      && day.getUTCDate()     === shifted.getUTCDate();
+  };
+
+  // Week calendar state — anchored to Lima's "today" via pure UTC arithmetic
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(limaNoonToday(), { weekStartsOn: 1 })
   );
@@ -172,22 +209,6 @@ export default function PsicologoDashboard() {
   const SCHED_START = 7;  // 7:00 AM
   const SCHED_END = 21;   // 9:00 PM
   const PX_PER_MIN = 2;   // 2px per minute → 120px per hour
-
-  // ── Lima/GMT-5 helpers (timezone-safe via date-fns-tz) ───────────────────
-  // formatInTimeZone() works correctly regardless of browser timezone.
-  // DO NOT use new Date(...) + offset tricks — they break in non-UTC browsers.
-
-  /** Is the given calendar noon-UTC day "today" in Lima timezone? */
-  const isTodayGMT5 = (day: Date): boolean =>
-    format(day, 'yyyy-MM-dd') === formatInTimeZone(new Date(), LIMA_TZ, 'yyyy-MM-dd');
-
-  /** Returns "HH:mm" for a UTC ISO string rendered in Lima timezone */
-  const limaHHmm = (isoUtc: string): string =>
-    formatInTimeZone(parseISO(isoUtc), LIMA_TZ, 'HH:mm');
-
-  /** Does a UTC ISO slot fall on this calendar day (Lima date)? */
-  const isSlotOnDay = (isoUtc: string, day: Date): boolean =>
-    formatInTimeZone(parseISO(isoUtc), LIMA_TZ, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
 
   /**
    * Form shows times in Lima/GMT-5. Convert to UTC before sending to the API.
@@ -268,10 +289,10 @@ export default function PsicologoDashboard() {
 
   const openEditSlot = (slot: AvailabilitySlot) => {
     setEditingSlot(slot);
-    // Convert stored UTC timestamps → Lima time for the form (timezone-safe)
+    // Convert stored UTC timestamps → Lima time for the datetime-local form inputs
     setSlotForm({
-      startTime: formatInTimeZone(parseISO(slot.startTime), LIMA_TZ, "yyyy-MM-dd'T'HH:mm"),
-      endTime:   formatInTimeZone(parseISO(slot.endTime),   LIMA_TZ, "yyyy-MM-dd'T'HH:mm"),
+      startTime: limaInputValue(slot.startTime),
+      endTime:   limaInputValue(slot.endTime),
       notes: slot.notes || "",
       isAvailable: slot.isAvailable,
     });
