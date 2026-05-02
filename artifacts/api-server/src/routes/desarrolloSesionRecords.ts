@@ -4,8 +4,9 @@ import {
   usersTable,
   desarrolloSesionRecordsTable,
   taskAssignmentsTable,
+  patientProfilesTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, ilike } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -42,6 +43,20 @@ function getIp(req: any): string | null {
 }
 
 router.use(loadUserRole);
+
+/** Para psicólogo: verifica que `pacienteId` esté asignado a su nombre. Admin pasa siempre. */
+async function psiOwnsPatient(req: any, pacienteId: number): Promise<boolean> {
+  if (req.session.userRole === "admin") return true;
+  const [actor] = await db.select({ name: usersTable.name }).from(usersTable)
+    .where(eq(usersTable.id, req.session.userId)).limit(1);
+  if (!actor?.name) return false;
+  const [row] = await db.select({ id: patientProfilesTable.id }).from(patientProfilesTable)
+    .where(and(
+      eq(patientProfilesTable.userId, pacienteId),
+      ilike(patientProfilesTable.psicologaAsignada, actor.name),
+    )).limit(1);
+  return !!row;
+}
 
 // ── Paciente: lista sus propios registros (todas las sesiones que ha guardado)
 router.get("/mine", requirePaciente, async (req: any, res) => {
@@ -110,12 +125,56 @@ router.post("/mine", requirePaciente, async (req: any, res) => {
   res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
 });
 
+// ── Admin / psicólogo: crea una sesión PARA un paciente específico.
+// Repetible — no toca asignaciones (la asignación de "Desarrollo Sesión"
+// es del psicólogo y no se completa automáticamente).
+router.post("/for-patient/:pacienteId", requireAdminOrPsi, async (req: any, res) => {
+  const pacienteId = parseInt(req.params.pacienteId);
+  if (!Number.isInteger(pacienteId)) { res.status(400).json({ error: "pacienteId inválido" }); return; }
+  const [paciente] = await db.select().from(usersTable).where(eq(usersTable.id, pacienteId)).limit(1);
+  if (!paciente || paciente.role !== "user") { res.status(404).json({ error: "Paciente no encontrado" }); return; }
+  if (!(await psiOwnsPatient(req, pacienteId))) {
+    res.status(403).json({ error: "Este paciente no está asignado a tu consulta" }); return;
+  }
+
+  const b = req.body ?? {};
+  const data = (b.data && typeof b.data === "object") ? b.data : {};
+  const pickStr = (v: unknown) => (typeof v === "string" ? v : null);
+
+  const [row] = await db.insert(desarrolloSesionRecordsTable).values({
+    pacienteId,
+    assignmentId: null,
+    fechaSesion: pickStr(b.fechaSesion),
+    horaSesion: pickStr(b.horaSesion),
+    numeroSesion: pickStr(b.numeroSesion),
+    data,
+  }).returning();
+
+  await logAudit({
+    actorId: req.session.userId,
+    actorName: null,
+    action: "CREATE_DESARROLLO_SESION_FOR_PATIENT",
+    targetTable: "desarrollo_sesion_records",
+    targetId: row.id,
+    ipAddress: getIp(req),
+    details: { pacienteId, numeroSesion: row.numeroSesion },
+  });
+
+  res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+});
+
 // ── Admin / psicólogo: lista de sesiones (filtrable por paciente)
-router.get("/", requireAdminOrPsi, async (req, res) => {
+router.get("/", requireAdminOrPsi, async (req: any, res) => {
   const pacienteId = req.query.pacienteId ? Number(req.query.pacienteId) : null;
   const filters: any[] = [];
   if (pacienteId !== null && Number.isInteger(pacienteId)) {
+    if (!(await psiOwnsPatient(req, pacienteId))) {
+      res.status(403).json({ error: "Este paciente no está asignado a tu consulta" }); return;
+    }
     filters.push(eq(desarrolloSesionRecordsTable.pacienteId, pacienteId));
+  } else if (req.session.userRole !== "admin") {
+    // Psicólogo no puede listar TODO sin filtro de paciente
+    res.status(400).json({ error: "Falta pacienteId" }); return;
   }
   const rows = await db.select().from(desarrolloSesionRecordsTable)
     .where(filters.length ? and(...filters) : undefined as any)

@@ -9,6 +9,8 @@ import { ArrowLeft, Save, Loader2, Activity } from "lucide-react";
 
 interface Props {
   assignmentId?: number | null;
+  /** Si está definido, el formulario lo envía un psicólogo/admin EN NOMBRE del paciente indicado. */
+  forPacienteId?: number | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -65,7 +67,7 @@ const SECTIONS: Array<{ id: string; title: string; fields: Array<{ key: string; 
   },
 ];
 
-export default function DesarrolloSesionForm({ assignmentId, onCancel, onSaved }: Props) {
+export default function DesarrolloSesionForm({ assignmentId, forPacienteId, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,16 +92,16 @@ export default function DesarrolloSesionForm({ assignmentId, onCancel, onSaved }
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/desarrollo-sesion/mine", {
+      const url = forPacienteId
+        ? `/api/desarrollo-sesion/for-patient/${forPacienteId}`
+        : "/api/desarrollo-sesion/mine";
+      const body = forPacienteId
+        ? { fechaSesion, horaSesion, numeroSesion, data }
+        : { assignmentId: assignmentId ?? null, fechaSesion, horaSesion, numeroSesion, data };
+      const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignmentId: assignmentId ?? null,
-          fechaSesion,
-          horaSesion,
-          numeroSesion,
-          data,
-        }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({}));
@@ -107,6 +109,9 @@ export default function DesarrolloSesionForm({ assignmentId, onCancel, onSaved }
       }
       toast({ title: "Sesión guardada", description: "El desarrollo de la sesión se registró correctamente." });
       queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+      if (forPacienteId) {
+        queryClient.invalidateQueries({ queryKey: ["psicologo-patient-sesiones", forPacienteId] });
+      }
       onSaved();
     } catch (e) {
       toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
