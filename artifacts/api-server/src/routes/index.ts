@@ -11,6 +11,7 @@ import therapeuticTasksRouter from "./therapeuticTasks";
 import anamnesisRecordsRouter from "./anamnesisRecords";
 import primeraConsultaRecordsRouter from "./primeraConsultaRecords";
 import desarrolloSesionRecordsRouter from "./desarrolloSesionRecords";
+import consultaPsicologicaRecordsRouter from "./consultaPsicologicaRecords";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use("/tareas", therapeuticTasksRouter);
 router.use("/anamnesis", anamnesisRecordsRouter);
 router.use("/primera-consulta", primeraConsultaRecordsRouter);
 router.use("/desarrollo-sesion", desarrolloSesionRecordsRouter);
+router.use("/consulta-psicologica", consultaPsicologicaRecordsRouter);
 
 export default router;

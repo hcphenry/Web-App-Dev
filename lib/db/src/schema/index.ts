@@ -10,3 +10,4 @@ export * from "./therapeuticTasks";
 export * from "./anamnesisRecords";
 export * from "./primeraConsultaRecords";
 export * from "./desarrolloSesionRecords";
+export * from "./consultaPsicologicaRecords";

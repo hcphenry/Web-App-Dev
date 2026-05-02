@@ -29,6 +29,7 @@ import {
 import AnamnesisMenorForm from "@/components/AnamnesisMenorForm";
 import PrimeraConsultaNinosForm from "@/components/PrimeraConsultaNinosForm";
 import DesarrolloSesionForm from "@/components/DesarrolloSesionForm";
+import ConsultaPsicologicaForm from "@/components/ConsultaPsicologicaForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -79,10 +80,11 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
+  const [activeConsultaPsicologicaAssignment, setActiveConsultaPsicologicaAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -255,6 +257,7 @@ export default function RegisterAbc() {
         const isAnamnesis = a.taskKey === 'anamnesis-menor';
         const isPrimeraConsulta = a.taskKey === 'primera-consulta-ninos';
         const isDesarrolloSesion = a.taskKey === 'desarrollo-sesion';
+        const isConsultaPsicologicaAdultos = a.taskKey === 'consulta-psicologica-adultos';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -283,11 +286,12 @@ export default function RegisterAbc() {
             else if (isAnamnesis) { setActiveAnamnesisAssignment(a.id); setView('anamnesis'); }
             else if (isPrimeraConsulta) { setActivePrimeraConsultaAssignment(a.id); setView('primera-consulta'); }
             else if (isDesarrolloSesion) { setActiveDesarrolloSesionAssignment(a.id); setView('desarrollo-sesion'); }
+            else if (isConsultaPsicologicaAdultos) { setActiveConsultaPsicologicaAssignment(a.id); setView('consulta-psicologica-adultos'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
-          // Repetibles (ABC y Desarrollo Sesión) no muestran el botón
+          // Repetibles (ABC, Desarrollo Sesión y Consulta Psicológica) no muestran el botón
           // "Marcar completada" porque el paciente puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion)
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -372,6 +376,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Desarrollo Sesión</h1>
                 <p className="text-muted-foreground mt-1">Formato de sesión psicológica</p>
+              </>
+            )}
+            {view === 'consulta-psicologica-adultos' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Consulta Psicológica</h1>
+                <p className="text-muted-foreground mt-1">Jóvenes y adultos · formulario de consulta</p>
               </>
             )}
           </div>
@@ -519,6 +529,14 @@ export default function RegisterAbc() {
             assignmentId={activeDesarrolloSesionAssignment}
             onCancel={() => { setView('dashboard'); setActiveDesarrolloSesionAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveDesarrolloSesionAssignment(null); }}
+          />
+        )}
+
+        {view === 'consulta-psicologica-adultos' && (
+          <ConsultaPsicologicaForm
+            assignmentId={activeConsultaPsicologicaAssignment}
+            onCancel={() => { setView('dashboard'); setActiveConsultaPsicologicaAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveConsultaPsicologicaAssignment(null); }}
           />
         )}
 

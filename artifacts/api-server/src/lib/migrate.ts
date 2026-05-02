@@ -446,6 +446,61 @@ export async function runMigrations() {
       await client.query(`CREATE INDEX IF NOT EXISTS desarrollo_sesion_records_assignment_idx ON desarrollo_sesion_records (assignment_id)`);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 11 (desarrollo sesion records) skipped"); }
 
+    // ── PHASE 12: consulta psicológica jóvenes y adultos records ───────────
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS consulta_psicologica_records (
+          id                       SERIAL PRIMARY KEY,
+          paciente_id              INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id            INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          fecha_consulta           TEXT,
+          nombre_persona_consulta  TEXT,
+          nombre_paciente          TEXT,
+          data                     JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at               TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at               TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS consulta_psicologica_records_paciente_idx ON consulta_psicologica_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS consulta_psicologica_records_assignment_idx ON consulta_psicologica_records (assignment_id)`);
+
+      // Catálogo: nueva tarea repetible para pacientes jóvenes/adultos.
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('consulta-psicologica-adultos', 'Consulta Psicológica Jóvenes y Adultos',
+           'Formulario de consulta para jóvenes y adultos: datos personales, motivo, hábitos, estado emocional y objetivos. Puede completarse muchas veces.',
+           'ClipboardList', 'from-rose-500 to-pink-600',
+           'bg-rose-100 text-rose-700', '/consulta-psicologica-adultos', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'consulta-psicologica-adultos'
+      `);
+
+      // Backfill: cada paciente recibe una asignación pendiente repetible.
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key = 'consulta-psicologica-adultos'
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 12 (consulta psicológica records) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
