@@ -605,6 +605,43 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 14 (plan intervención adultos) skipped"); }
 
+    // ── PHASE 15: Plan de intervención niños (paciente, repetible) ─────────
+    // Reutiliza la tabla `plan_intervencion_records` (mismo formato del PDF).
+    try {
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('plan-intervencion-ninos', 'Plan de intervención niños',
+           'Plan de intervención psicológica para niños: datos generales, objetivo general y 8 sesiones (objetivo específico, actividades, tiempo y materiales). Puede completarse muchas veces.',
+           'Target', 'from-amber-500 to-orange-600',
+           'bg-amber-100 text-amber-700', '/plan-intervencion-ninos', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'plan-intervencion-ninos'
+      `);
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key = 'plan-intervencion-ninos'
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 15 (plan intervención niños) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
