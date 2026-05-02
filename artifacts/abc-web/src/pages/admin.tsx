@@ -289,7 +289,7 @@ export default function AdminDashboard() {
   const [auditToFilter, setAuditToFilter] = useState('');
   const [activeTab, setActiveTab] = useState('users');
   const [auditPage, setAuditPage] = useState(0);
-  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const AUDIT_LIMIT = 25;
 
   const buildAuditParams = (overrides?: { limit?: number; offset?: number }) => {
@@ -314,36 +314,56 @@ export default function AdminDashboard() {
     enabled: activeTab === 'auditoria',
   });
 
-  const handleExportCsv = async () => {
-    setExportingCsv(true);
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
     try {
       const params = buildAuditParams({ limit: 2000, offset: 0 });
       const res = await fetch(`/api/admin/audit-logs?${params}`);
       if (!res.ok) throw new Error("Error al exportar los registros de auditoría");
       const data: { logs: AuditLog[] } = await res.json();
+
+      const ExcelJS = (await import('exceljs')).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Auditoría');
+
       const headers = ['Fecha', 'Actor', 'Acción', 'Tabla', 'ID Objetivo', 'IP'];
-      const rows = data.logs.map(log => [
-        format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es }),
-        log.actorName || `ID ${log.actorId}`,
-        ACTION_LABELS[log.action] || log.action,
-        log.targetTable || '',
-        log.targetId ?? '',
-        log.ipAddress || '',
-      ]);
-      const csvContent = [headers, ...rows]
-        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n');
-      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const headerRow = worksheet.addRow(headers);
+      headerRow.eachCell(cell => {
+        cell.font = { bold: true };
+      });
+
+      data.logs.forEach(log => {
+        worksheet.addRow([
+          format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es }),
+          log.actorName || `ID ${log.actorId}`,
+          ACTION_LABELS[log.action] || log.action,
+          log.targetTable || '',
+          log.targetId != null ? String(log.targetId) : '',
+          log.ipAddress || '',
+        ]);
+      });
+
+      worksheet.columns.forEach((column, i) => {
+        let maxLength = headers[i].length;
+        column.eachCell?.({ includeEmpty: true }, cell => {
+          const cellLen = cell.value ? String(cell.value).length : 0;
+          if (cellLen > maxLength) maxLength = cellLen;
+        });
+        column.width = Math.min(maxLength + 4, 50);
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `auditoria_${format(new Date(), 'yyyy-MM-dd_HHmm')}.csv`;
+      a.download = `auditoria_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      toast({ title: "Error al exportar", description: err instanceof Error ? err.message : "No se pudo generar el archivo CSV.", variant: "destructive" });
+      toast({ title: "Error al exportar", description: err instanceof Error ? err.message : "No se pudo generar el archivo Excel.", variant: "destructive" });
     } finally {
-      setExportingCsv(false);
+      setExportingExcel(false);
     }
   };
   const auditLogs = auditData?.logs ?? [];
@@ -678,9 +698,9 @@ export default function AdminDashboard() {
                     <p className="text-sm text-muted-foreground mt-0.5">Registro de acciones sensibles realizadas en el sistema.</p>
                   </div>
                   <div className="flex gap-2 self-start">
-                    <Button variant="outline" size="sm" className="rounded-full" onClick={handleExportCsv} disabled={exportingCsv}>
-                      {exportingCsv ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
-                      Exportar CSV
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={handleExportExcel} disabled={exportingExcel}>
+                      {exportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+                      Exportar Excel
                     </Button>
                     <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setAuditActionFilter(''); setAuditActorNameFilter(''); setAuditFromFilter(''); setAuditToFilter(''); setAuditPage(0); }}>
                       Limpiar filtros
