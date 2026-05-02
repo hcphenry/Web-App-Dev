@@ -520,12 +520,14 @@ export default function PsicologoDashboard() {
                               const h = Math.floor(snappedMin / 60) + SCHED_START;
                               const m = snappedMin % 60;
                               if (h >= SCHED_END) return;
-                              const start = setMinutes(setHours(day, h), m);
-                              const end = addHours(start, 1);
-                              openCreateSlot({
-                                startTime: format(start, "yyyy-MM-dd'T'HH:mm"),
-                                endTime: format(end, "yyyy-MM-dd'T'HH:mm"),
-                              });
+                              // Build Lima datetime string without browser timezone.
+                              // day is a noon-UTC Date whose getUTC* give the Lima date.
+                              const padN = (n: number) => String(n).padStart(2, '0');
+                              const limaDate = `${day.getUTCFullYear()}-${padN(day.getUTCMonth()+1)}-${padN(day.getUTCDate())}`;
+                              const startTime = `${limaDate}T${padN(h)}:${padN(m)}`;
+                              const endH = h + 1 >= SCHED_END ? SCHED_END - 1 : h + 1;
+                              const endTime = `${limaDate}T${padN(endH)}:${padN(m)}`;
+                              openCreateSlot({ startTime, endTime });
                             }}
                           >
                             {/* Horizontal hour lines */}
@@ -1032,9 +1034,14 @@ function IntensityChart({ records }: { records: AbcRecord[] }) {
 }
 
 function SlotCard({ slot, onEdit, onDelete, past }: { slot: AvailabilitySlot; onEdit: (s: AvailabilitySlot) => void; onDelete: (s: AvailabilitySlot) => void; past?: boolean }) {
-  const start = parseISO(slot.startTime);
-  const end = parseISO(slot.endTime);
-  const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
+  const LIMA_H = 5;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const shiftedStart = new Date(parseISO(slot.startTime).getTime() - LIMA_H * 3_600_000);
+  const shiftedEnd   = new Date(parseISO(slot.endTime).getTime()   - LIMA_H * 3_600_000);
+  const durationMin  = Math.round((parseISO(slot.endTime).getTime() - parseISO(slot.startTime).getTime()) / 60000);
+  const startHHmm = `${pad(shiftedStart.getUTCHours())}:${pad(shiftedStart.getUTCMinutes())}`;
+  const endHHmm   = `${pad(shiftedEnd.getUTCHours())}:${pad(shiftedEnd.getUTCMinutes())}`;
+  const dayLabel  = `${shiftedStart.getUTCFullYear()}-${pad(shiftedStart.getUTCMonth()+1)}-${pad(shiftedStart.getUTCDate())}`;
 
   return (
     <div className="glass-panel rounded-xl p-4 border flex flex-wrap gap-3 items-start justify-between hover:shadow-md transition-shadow">
@@ -1044,10 +1051,10 @@ function SlotCard({ slot, onEdit, onDelete, past }: { slot: AvailabilitySlot; on
         </div>
         <div>
           <p className="font-semibold text-sm text-foreground">
-            {format(start, "EEEE d 'de' MMMM yyyy", { locale: es })}
+            {format(new Date(dayLabel + 'T12:00:00'), "EEEE d 'de' MMMM yyyy", { locale: es })}
           </p>
           <p className="text-sm text-muted-foreground">
-            {format(start, "HH:mm")} — {format(end, "HH:mm")} <span className="ml-1 text-xs">({durationMin} min)</span>
+            {startHHmm} — {endHHmm} <span className="ml-1 text-xs">({durationMin} min)</span>
           </p>
           {slot.notes && <p className="text-xs text-muted-foreground mt-1 italic">"{slot.notes}"</p>}
         </div>
