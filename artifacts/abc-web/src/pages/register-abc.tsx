@@ -27,6 +27,7 @@ import {
   Clock as ClockIcon, PlayCircle, type LucideIcon
 } from "lucide-react";
 import AnamnesisMenorForm from "@/components/AnamnesisMenorForm";
+import PrimeraConsultaNinosForm from "@/components/PrimeraConsultaNinosForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -77,8 +78,9 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
+  const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -249,6 +251,7 @@ export default function RegisterAbc() {
         const Icon = TASK_ICON_MAP[a.taskIcon] ?? ClipboardList;
         const isABC = a.taskKey === 'registro-abc';
         const isAnamnesis = a.taskKey === 'anamnesis-menor';
+        const isPrimeraConsulta = a.taskKey === 'primera-consulta-ninos';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -275,6 +278,7 @@ export default function RegisterAbc() {
             if (a.status === 'pendiente') void markStartedMut(a.id);
             if (isABC) { resetForm(); setView('form'); }
             else if (isAnamnesis) { setActiveAnamnesisAssignment(a.id); setView('anamnesis'); }
+            else if (isPrimeraConsulta) { setActivePrimeraConsultaAssignment(a.id); setView('primera-consulta'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           onComplete: a.status !== 'completada' && a.status !== 'cancelada'
@@ -348,6 +352,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Anamnesis menor 18</h1>
                 <p className="text-muted-foreground mt-1">Historia clínica infantil</p>
+              </>
+            )}
+            {view === 'primera-consulta' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Primera consulta niños</h1>
+                <p className="text-muted-foreground mt-1">Formulario de admisión</p>
               </>
             )}
           </div>
@@ -473,6 +483,14 @@ export default function RegisterAbc() {
             assignmentId={activeAnamnesisAssignment}
             onCancel={() => { setView('dashboard'); setActiveAnamnesisAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveAnamnesisAssignment(null); }}
+          />
+        )}
+
+        {view === 'primera-consulta' && (
+          <PrimeraConsultaNinosForm
+            assignmentId={activePrimeraConsultaAssignment}
+            onCancel={() => { setView('dashboard'); setActivePrimeraConsultaAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActivePrimeraConsultaAssignment(null); }}
           />
         )}
 

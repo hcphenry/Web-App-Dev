@@ -288,7 +288,11 @@ export async function runMigrations() {
           ('anamnesis-menor', 'Anamnesis menor 18',
            'Historia clínica completa para pacientes menores de 18 años: datos generales, embarazo, desarrollo motor, lenguaje, salud, escolaridad y relaciones familiares.',
            'FileText', 'from-amber-500 to-orange-600',
-           'bg-amber-100 text-amber-700', '/anamnesis-menor', TRUE, TRUE)
+           'bg-amber-100 text-amber-700', '/anamnesis-menor', TRUE, TRUE),
+          ('primera-consulta-ninos', 'Primera consulta niños',
+           'Formulario de admisión para la primera consulta psicológica del menor: datos del niño y los padres, motivo, desarrollo, comportamiento, salud y objetivos terapéuticos.',
+           'ClipboardList', 'from-sky-500 to-cyan-600',
+           'bg-sky-100 text-sky-700', '/primera-consulta-ninos', TRUE, TRUE)
         ON CONFLICT (key) DO NOTHING
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 8 (therapeutic tasks) skipped"); }
@@ -313,6 +317,25 @@ export async function runMigrations() {
       await client.query(`CREATE INDEX IF NOT EXISTS anamnesis_records_paciente_idx ON anamnesis_records (paciente_id)`);
       await client.query(`CREATE INDEX IF NOT EXISTS anamnesis_records_assignment_idx ON anamnesis_records (assignment_id)`);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 9 (anamnesis records) skipped"); }
+
+    // ── PHASE 10: primera consulta niños records ────────────────────────────
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS primera_consulta_records (
+          id              SERIAL PRIMARY KEY,
+          paciente_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id   INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          nombre_nino     TEXT NOT NULL DEFAULT '',
+          edad            TEXT,
+          motivo_consulta TEXT,
+          data            JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS primera_consulta_records_paciente_idx ON primera_consulta_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS primera_consulta_records_assignment_idx ON primera_consulta_records (assignment_id)`);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 10 (primera consulta records) skipped"); }
 
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
