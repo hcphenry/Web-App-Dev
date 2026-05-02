@@ -410,9 +410,15 @@ export default function RegisterAbc() {
                 return (
                   <div
                     key={task.id}
+                    role={task.available ? 'button' : undefined}
+                    tabIndex={task.available ? 0 : undefined}
+                    onClick={task.available ? task.onActivate : undefined}
+                    onKeyDown={task.available ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); task.onActivate(); }
+                    } : undefined}
                     className={`group relative glass-panel rounded-2xl border overflow-hidden transition-all duration-300 ${
                       task.available
-                        ? 'hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200'
+                        ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200'
                         : 'opacity-70'
                     }`}
                   >
@@ -439,7 +445,7 @@ export default function RegisterAbc() {
                         <div className="mt-5 pt-4 border-t border-border/50 flex flex-wrap items-center gap-2">
                           <Button
                             size="sm"
-                            onClick={task.onActivate}
+                            onClick={(e) => { e.stopPropagation(); task.onActivate(); }}
                             className="rounded-xl flex-1 min-w-[140px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
                           >
                             Comenzar tarea
@@ -449,7 +455,7 @@ export default function RegisterAbc() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={task.onViewHistory}
+                              onClick={(e) => { e.stopPropagation(); task.onViewHistory!(); }}
                               className="rounded-xl flex-1 min-w-[120px]"
                             >
                               <History className="w-4 h-4 mr-1.5" />
@@ -460,7 +466,7 @@ export default function RegisterAbc() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={(task as { onComplete?: () => void }).onComplete}
+                              onClick={(e) => { e.stopPropagation(); (task as { onComplete?: () => void }).onComplete!(); }}
                               className="rounded-xl flex-1 min-w-[140px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                               data-testid={`btn-complete-${task.id}`}
                             >
