@@ -334,7 +334,7 @@ router.patch("/sesiones/:id", requireAdmin, async (req: any, res) => {
   if (!Number.isInteger(id)) { res.status(400).json({ error: "ID inválido" }); return; }
 
   const updates: any = { updatedAt: new Date() };
-  const { estadoPago, fechaPago, montoCobrado, metodoPago, notas, fechaSesion } = req.body ?? {};
+  const { estadoPago, fechaPago, montoCobrado, moneda, metodoPago, notas, fechaSesion, pacienteId, psicologoId } = req.body ?? {};
 
   if (estadoPago && ["pagado", "pendiente", "deuda"].includes(estadoPago)) {
     updates.estadoPago = estadoPago;
@@ -352,12 +352,31 @@ router.patch("/sesiones/:id", requireAdmin, async (req: any, res) => {
     if (!Number.isFinite(m) || m < 0) { res.status(400).json({ error: "monto inválido" }); return; }
     updates.montoCobrado = m.toFixed(2);
   }
+  if (typeof moneda === "string" && ["PEN", "USD", "EUR"].includes(moneda)) {
+    updates.moneda = moneda;
+  }
   if (typeof metodoPago === "string") updates.metodoPago = metodoPago || null;
   if (typeof notas === "string") updates.notas = notas || null;
   if (fechaSesion) {
     const d = new Date(fechaSesion);
     if (isNaN(d.getTime())) { res.status(400).json({ error: "fechaSesion inválida" }); return; }
     updates.fechaSesion = d;
+  }
+  if (pacienteId !== undefined) {
+    const pid = Number(pacienteId);
+    if (!Number.isInteger(pid)) { res.status(400).json({ error: "pacienteId inválido" }); return; }
+    const [p] = await db.select({ id: usersTable.id, role: usersTable.role })
+      .from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+    if (!p || p.role !== "user") { res.status(400).json({ error: "Paciente inválido" }); return; }
+    updates.pacienteId = pid;
+  }
+  if (psicologoId !== undefined) {
+    const psid = Number(psicologoId);
+    if (!Number.isInteger(psid)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
+    const [p] = await db.select({ id: usersTable.id, role: usersTable.role })
+      .from(usersTable).where(eq(usersTable.id, psid)).limit(1);
+    if (!p || p.role !== "psicologo") { res.status(400).json({ error: "Psicólogo inválido" }); return; }
+    updates.psicologoId = psid;
   }
 
   const [updated] = await db.update(sesionesContabilidadTable)
