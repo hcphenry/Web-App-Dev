@@ -7,6 +7,7 @@ import psychologistsRouter from "./psychologists";
 import patientProfilesRouter from "./patientProfiles";
 import accountingRouter from "./accounting";
 import financieroRouter from "./financiero";
+import therapeuticTasksRouter from "./therapeuticTasks";
 
 const router: IRouter = Router();
 
@@ -23,5 +24,6 @@ router.use("/contabilidad", accountingRouter);
 // satisfy the prompt's /api/agenda/* contract without duplicating logic.
 router.use("/agenda", accountingRouter);
 router.use("/financiero", financieroRouter);
+router.use("/tareas", therapeuticTasksRouter);
 
 export default router;

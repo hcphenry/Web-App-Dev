@@ -227,6 +227,68 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 7 (primer/segundo nombre) skipped"); }
 
+    // PHASE 8: Therapeutic tasks catalog + assignments (Portal Tareas Terapéuticas)
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS therapeutic_tasks (
+          id            SERIAL PRIMARY KEY,
+          key           TEXT NOT NULL,
+          name          TEXT NOT NULL,
+          description   TEXT NOT NULL DEFAULT '',
+          icon          TEXT NOT NULL DEFAULT 'ClipboardList',
+          color         TEXT NOT NULL DEFAULT 'from-teal-500 to-teal-600',
+          badge_color   TEXT NOT NULL DEFAULT 'bg-teal-100 text-teal-700',
+          route_path    TEXT,
+          is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+          is_available  BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS therapeutic_tasks_key_unique ON therapeutic_tasks (key)
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS task_assignments (
+          id              SERIAL PRIMARY KEY,
+          task_id         INTEGER NOT NULL REFERENCES therapeutic_tasks(id) ON DELETE RESTRICT,
+          paciente_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assigned_by_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          psicologo_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          status          TEXT NOT NULL DEFAULT 'pendiente',
+          due_date        TIMESTAMP,
+          assigned_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+          started_at      TIMESTAMP,
+          completed_at    TIMESTAMP,
+          notes           TEXT,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          CONSTRAINT task_assignments_status_check
+            CHECK (status IN ('pendiente','en_progreso','completada','cancelada'))
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS task_assignments_paciente_idx ON task_assignments (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS task_assignments_psicologo_idx ON task_assignments (psicologo_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS task_assignments_task_idx ON task_assignments (task_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS task_assignments_status_idx ON task_assignments (status)`);
+
+      // Seed the catalog with the tasks already present in the patient panel.
+      // ON CONFLICT keeps any admin edits (name/description/availability) intact.
+      await client.query(`
+        INSERT INTO therapeutic_tasks (key, name, description, icon, color, badge_color, route_path, is_active, is_available)
+        VALUES
+          ('registro-abc', 'Registro ABC',
+           'Identifica situaciones, pensamientos automáticos y sus consecuencias emocionales.',
+           'BrainCircuit', 'from-indigo-500 to-purple-600',
+           'bg-indigo-100 text-indigo-700', '/register-abc', TRUE, TRUE),
+          ('rueda-vida', 'La Rueda de la Vida',
+           'Evalúa el equilibrio en las distintas áreas de tu vida personal y profesional.',
+           'Circle', 'from-slate-300 to-slate-400',
+           'bg-slate-100 text-slate-500', NULL, TRUE, FALSE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 8 (therapeutic tasks) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

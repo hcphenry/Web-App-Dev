@@ -10,7 +10,7 @@ import {
   getGetMeQueryKey,
   type CreateRecordRequest 
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,8 +23,32 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, ArrowLeft, CheckCircle2, MessageCircle, 
   BrainCircuit, Activity, Lightbulb, History, FileText, UserCircle, Loader2, Save,
-  Home, Lock, ChevronRight, LayoutDashboard, Circle
+  Home, Lock, ChevronRight, LayoutDashboard, Circle, ClipboardList,
+  Clock as ClockIcon, PlayCircle, type LucideIcon
 } from "lucide-react";
+
+interface MyTaskAssignment {
+  id: number;
+  taskId: number;
+  taskKey: string;
+  taskName: string;
+  taskDescription: string;
+  taskIcon: string;
+  taskColor: string;
+  taskBadgeColor: string;
+  taskRoutePath: string | null;
+  taskIsAvailable: boolean;
+  status: 'pendiente' | 'en_progreso' | 'completada' | 'cancelada';
+  dueDate: string | null;
+  assignedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+}
+
+const TASK_ICON_MAP: Record<string, LucideIcon> = {
+  BrainCircuit, Circle, ClipboardList, Activity, Lightbulb, FileText,
+};
 
 interface PatientProfile {
   id?: number;
@@ -194,33 +218,94 @@ export default function RegisterAbc() {
     { num: 5, title: "Resumen", icon: CheckCircle2 },
   ];
 
-  // Array de tareas terapéuticas — agregar nuevas tareas aquí fácilmente
-  const therapeuticTasks = [
-    {
-      id: 'registro-abc',
-      title: 'Registro ABC',
-      description: 'Identifica situaciones, pensamientos automáticos y sus consecuencias emocionales.',
-      icon: BrainCircuit,
-      available: true,
-      color: 'from-indigo-500 to-purple-600',
-      badgeColor: 'bg-indigo-100 text-indigo-700',
-      badge: 'Disponible',
-      onActivate: () => { resetForm(); setView('form'); },
-      onViewHistory: () => setView('history'),
+  // Tareas asignadas a este paciente — vienen del backend (Portal Tareas)
+  const myTasksQ = useQuery<MyTaskAssignment[]>({
+    queryKey: ["mine-tasks"],
+    queryFn: async () => {
+      const r = await fetch("/api/tareas/mine");
+      if (!r.ok) return [];
+      return r.json();
     },
-    {
-      id: 'rueda-vida',
-      title: 'La Rueda de la Vida',
-      description: 'Evalúa el equilibrio en las distintas áreas de tu vida personal y profesional.',
-      icon: Circle,
-      available: false,
-      color: 'from-slate-300 to-slate-400',
-      badgeColor: 'bg-slate-100 text-slate-500',
-      badge: 'Próximamente',
-      onActivate: () => {},
-      onViewHistory: undefined,
-    },
-  ];
+  });
+  const myAssignments = myTasksQ.data ?? [];
+
+  // Mark assignment as started/completed when patient interacts with it
+  const markStartedMut = async (assignmentId: number) => {
+    try { await fetch(`/api/tareas/mine/${assignmentId}/start`, { method: "POST" }); } catch {}
+    queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+  };
+  const markCompletedMut = async (assignmentId: number) => {
+    try { await fetch(`/api/tareas/mine/${assignmentId}/complete`, { method: "POST" }); } catch {}
+    queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+  };
+
+  // Derive renderable cards from assignments. If a paciente has no assignments
+  // we fall back to the legacy hardcoded catalog so the existing UX is preserved
+  // (e.g. para usuarios que aún no fueron asignados por su psicólogo/admin).
+  const therapeuticTasks = (myAssignments.length > 0
+    ? myAssignments.map((a) => {
+        const Icon = TASK_ICON_MAP[a.taskIcon] ?? ClipboardList;
+        const isABC = a.taskKey === 'registro-abc';
+        const available = a.taskIsAvailable && a.status !== 'cancelada';
+        const statusLabel =
+          a.status === 'completada' ? 'Completada' :
+          a.status === 'en_progreso' ? 'En progreso' :
+          a.status === 'cancelada' ? 'Cancelada' :
+          available ? 'Pendiente' : 'Próximamente';
+        const statusBadge =
+          a.status === 'completada' ? 'bg-emerald-100 text-emerald-700' :
+          a.status === 'en_progreso' ? 'bg-sky-100 text-sky-700' :
+          a.status === 'cancelada' ? 'bg-slate-100 text-slate-500' :
+          available ? 'bg-amber-100 text-amber-700' : a.taskBadgeColor;
+        return {
+          id: `${a.taskKey}-${a.id}`,
+          title: a.taskName,
+          description: a.taskDescription || (a.notes ?? ''),
+          icon: Icon,
+          available,
+          color: a.taskColor,
+          badgeColor: statusBadge,
+          badge: statusLabel,
+          onActivate: () => {
+            if (!available) return;
+            // Mark as started if still pending
+            if (a.status === 'pendiente') void markStartedMut(a.id);
+            if (isABC) { resetForm(); setView('form'); }
+          },
+          onViewHistory: isABC ? () => setView('history') : undefined,
+          onComplete: a.status !== 'completada' && a.status !== 'cancelada'
+            ? () => void markCompletedMut(a.id)
+            : undefined,
+        };
+      })
+    : [
+        {
+          id: 'registro-abc',
+          title: 'Registro ABC',
+          description: 'Identifica situaciones, pensamientos automáticos y sus consecuencias emocionales.',
+          icon: BrainCircuit,
+          available: true,
+          color: 'from-indigo-500 to-purple-600',
+          badgeColor: 'bg-indigo-100 text-indigo-700',
+          badge: 'Disponible',
+          onActivate: () => { resetForm(); setView('form'); },
+          onViewHistory: () => setView('history'),
+          onComplete: undefined as undefined | (() => void),
+        },
+        {
+          id: 'rueda-vida',
+          title: 'La Rueda de la Vida',
+          description: 'Evalúa el equilibrio en las distintas áreas de tu vida personal y profesional.',
+          icon: Circle,
+          available: false,
+          color: 'from-slate-300 to-slate-400',
+          badgeColor: 'bg-slate-100 text-slate-500',
+          badge: 'Próximamente',
+          onActivate: () => {},
+          onViewHistory: undefined,
+          onComplete: undefined as undefined | (() => void),
+        },
+      ]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -331,11 +416,11 @@ export default function RegisterAbc() {
                       <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
 
                       {task.available && (
-                        <div className="mt-5 pt-4 border-t border-border/50 flex items-center gap-2">
+                        <div className="mt-5 pt-4 border-t border-border/50 flex flex-wrap items-center gap-2">
                           <Button
                             size="sm"
                             onClick={task.onActivate}
-                            className="rounded-xl flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
+                            className="rounded-xl flex-1 min-w-[140px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
                           >
                             Comenzar tarea
                             <ChevronRight className="w-4 h-4 ml-1" />
@@ -345,10 +430,22 @@ export default function RegisterAbc() {
                               size="sm"
                               variant="outline"
                               onClick={task.onViewHistory}
-                              className="rounded-xl flex-1"
+                              className="rounded-xl flex-1 min-w-[120px]"
                             >
                               <History className="w-4 h-4 mr-1.5" />
                               Ver historial
+                            </Button>
+                          )}
+                          {(task as { onComplete?: () => void }).onComplete && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(task as { onComplete?: () => void }).onComplete}
+                              className="rounded-xl flex-1 min-w-[140px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                              data-testid={`btn-complete-${task.id}`}
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                              Marcar completada
                             </Button>
                           )}
                         </div>

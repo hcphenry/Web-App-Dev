@@ -31,6 +31,7 @@ import {
 import PortalContable from "@/components/PortalContable";
 import PortalFinanciero from "@/components/PortalFinanciero";
 import PortalAgenda from "@/components/PortalAgenda";
+import PortalTareas from "@/components/PortalTareas";
 
 interface DashboardStats {
   totals: {
@@ -699,7 +700,7 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-7xl grid-cols-3 md:grid-cols-9 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-7xl grid-cols-3 md:grid-cols-10 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="dashboard" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <LayoutDashboard className="w-4 h-4 mr-1.5" /> Dashboard
             </TabsTrigger>
@@ -714,6 +715,9 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="agenda" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <CalendarDays className="w-4 h-4 mr-1.5" /> Agenda
+            </TabsTrigger>
+            <TabsTrigger value="tareas" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ClipboardList className="w-4 h-4 mr-1.5" /> Tareas
             </TabsTrigger>
             <TabsTrigger value="contable" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Wallet className="w-4 h-4 mr-1.5" /> Contable
@@ -1159,6 +1163,10 @@ export default function AdminDashboard() {
           {/* AGENDA TAB */}
           <TabsContent value="agenda" className="mt-6">
             <PortalAgenda />
+          </TabsContent>
+
+          <TabsContent value="tareas" className="mt-6">
+            <PortalTareas />
           </TabsContent>
 
           {/* CONTABLE TAB */}
