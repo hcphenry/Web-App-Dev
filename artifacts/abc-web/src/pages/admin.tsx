@@ -26,9 +26,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { 
   Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit,
   ClipboardList, Eye, Save, Download, LayoutDashboard, TrendingUp, Activity, HeartPulse,
-  UserCheck, FileText, Clock, CheckCircle2, XCircle, AlertCircle, CalendarDays, Wallet
+  UserCheck, FileText, Clock, CheckCircle2, XCircle, AlertCircle, CalendarDays, Wallet, Receipt
 } from "lucide-react";
 import PortalContable from "@/components/PortalContable";
+import PortalFinanciero from "@/components/PortalFinanciero";
 
 interface DashboardStats {
   totals: {
@@ -601,7 +602,7 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-5xl grid-cols-7 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-6xl grid-cols-4 md:grid-cols-8 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="dashboard" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <LayoutDashboard className="w-4 h-4 mr-1.5" /> Dashboard
             </TabsTrigger>
@@ -616,6 +617,9 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="contable" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Wallet className="w-4 h-4 mr-1.5" /> Contable
+            </TabsTrigger>
+            <TabsTrigger value="financiero" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Receipt className="w-4 h-4 mr-1.5" /> Financiero
             </TabsTrigger>
             <TabsTrigger value="auditoria" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <ClipboardList className="w-4 h-4 mr-1.5" /> Auditoría
@@ -1055,6 +1059,11 @@ export default function AdminDashboard() {
           {/* CONTABLE TAB */}
           <TabsContent value="contable" className="mt-6">
             <PortalContable />
+          </TabsContent>
+
+          {/* FINANCIERO TAB */}
+          <TabsContent value="financiero" className="mt-6">
+            <PortalFinanciero />
           </TabsContent>
 
           {/* AUDITORÍA TAB */}

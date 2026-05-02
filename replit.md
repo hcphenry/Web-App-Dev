@@ -55,12 +55,13 @@ artifacts-monorepo/
 - Navigation bar: Inicio | Historial | Mi Cuenta
 
 ### Admin View
-- Dashboard at `/admin` (7 tabs)
+- Dashboard at `/admin` (8 tabs)
 - **Usuarios**: User management (create, edit, delete, change password). Patients have a teal eye-icon button to open their clinical profile.
 - **Registros**: View all ABC records filtered by user (card-based layout)
 - **Psicólogos**: Manage psychologists (CRUD with professional profile data)
 - **Contable** (Portal Contable): Billing/accounting module with sub-tabs Dashboard (KPIs + monthly chart), Tarifas (per-patient session rates with currency PEN/USD/EUR), Sesiones (session log with estado pagado/pendiente/deuda, filters, mark as paid, edit, delete), Reportes (per-patient and per-psychologist reports with comisión calc + CSV export). Backend `/api/contabilidad/*` enforces admin RBAC, atomic transactions for session creation with tarifa fallback, strict currency allowlist, and DB CHECK constraints (`monto >= 0`).
-- **Auditoría**: Audit log viewer with action filter and pagination (VIEW_PATIENT_PROFILE, ADMIN_UPDATE_PATIENT_PROFILE, UPDATE_OWN_PROFILE)
+- **Financiero** (Portal Financiero): Bank statement ingestion module. Sub-tabs Dashboard (4 KPIs Ingresos/Egresos/Balance Neto/Total + breakdown por banco) and Transacciones (paginated table with filters by banco/usuario/search/date-range/monto-range, inline edit of paciente assignment and banco label, CSV/Excel export). Upload modal accepts `.xlsx` (10MB max) and auto-detects bank by column signature for BCP/BBVA/SCOTIABANK/INTERBANK (Interbank also reads "Cargo" column as negative). Excel dates parsed as Lima TZ (00:00 = 05:00Z), strict — no host-TZ fallback. Deduplication via SHA-256 hash over `banco|cuentaBancaria|fechaIso|monto|numeroOperacion|descripcion` so same op in different accounts is not collapsed. All routes admin-only with `requireAdmin`; `loadUserRole` clears stale session when DB user is missing.
+- **Auditoría**: Audit log viewer with action filter and pagination (VIEW_PATIENT_PROFILE, ADMIN_UPDATE_PATIENT_PROFILE, UPDATE_OWN_PROFILE, FINANCIERO_*)
 - **Mi Cuenta**: Admin can change their own email/password
 - Password suggestion tool
 
@@ -84,6 +85,7 @@ artifacts-monorepo/
 - **patient_profiles**: id, user_id (FK→users, unique), apellido_paterno, apellido_materno, perioricidad, fecha_alta, estado (activo/inactivo/suspendido), nro_celular, tipo_documento, numero_documento, fecha_nacimiento, sexo, direccion, distrito, ciudad, departamento, pais, costo_terapia, psicologa_asignada, created_at, updated_at
 - **audit_logs**: id, actor_id, actor_name, action, target_table, target_id, ip_address, details (JSON text), created_at
 - **reclamaciones**: id, correlativo, fecha, tipo_reclamo, tipo_item, nombres, dni, domicilio, telefono, email, es_menor, rep_nombres, rep_dni, rep_vinculo, monto, descripcion_bien, detalle, pedido, email_enviado, creado_en
+- **transactions**: id, fecha (timestamptz, Lima 00:00 stored as 05:00Z), descripcion, monto numeric(14,2), moneda (PEN default), numero_operacion, banco, cuenta_bancaria, usuario_id (FK→users, nullable), usuario_texto (free-text fallback), hash_unico (UNIQUE), uploaded_by (FK→users), created_at, updated_at + indexes on banco, fecha, usuario_id, hash_unico
 
 ## Default Admin Credentials
 
@@ -134,6 +136,12 @@ All routes under `/api`:
 - `GET /admin/patients/:id/profile` — View any patient's clinical profile (admin only, logs audit)
 - `PUT /admin/patients/:id/profile` — Update any patient's clinical profile (admin only, logs audit)
 - `GET /admin/audit-logs` — Paginated audit log list with action/actor/date filters (admin only)
+- `POST /api/financiero/upload` — Upload bank statement .xlsx; auto-detects bank, dedups by hash (admin only)
+- `GET /api/financiero/transactions` — List with filters banco/usuarioId/search/from/to/montoMin/montoMax + pagination (admin only)
+- `PATCH/DELETE /api/financiero/transactions/:id` — Inline edit (usuarioId/usuarioTexto/banco/cuentaBancaria) / delete (admin only)
+- `GET /api/financiero/kpis` — Aggregates totalIngresos/totalEgresos/balanceNeto/totalTransacciones + porBanco breakdown (admin only)
+- `GET /api/financiero/export.csv` & `/export.xlsx` — Export filtered transactions (admin only)
+- `GET /api/financiero/usuarios` & `/bancos` — Helper lists for UI dropdowns (admin only)
 
 ## TypeScript & Composite Projects
 

@@ -6,6 +6,7 @@ import recordsRouter from "./records";
 import psychologistsRouter from "./psychologists";
 import patientProfilesRouter from "./patientProfiles";
 import accountingRouter from "./accounting";
+import financieroRouter from "./financiero";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(recordsRouter);
 router.use(psychologistsRouter);
 router.use(patientProfilesRouter);
 router.use("/contabilidad", accountingRouter);
+router.use("/financiero", financieroRouter);
 
 export default router;
