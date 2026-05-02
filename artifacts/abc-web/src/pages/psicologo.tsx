@@ -13,6 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import type { TooltipProps } from "recharts";
+import type { ValueType, NameType } from "recharts/types/component/DefaultTooltipContent";
 
 interface AvailabilitySlot {
   id: number;
@@ -813,6 +816,11 @@ export default function PsicologoDashboard() {
                       />
                     </div>
                   </div>
+
+                  {!loadingPatientRecords && patientRecords.length > 0 && (
+                    <IntensityChart records={patientRecords} />
+                  )}
+
                   <div className="max-h-[42vh] overflow-y-auto pr-1">
                     {loadingPatientRecords ? (
                       <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -892,6 +900,59 @@ function RecordField({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{label}</p>
       <p className="text-sm text-foreground leading-relaxed">{value}</p>
+    </div>
+  );
+}
+
+interface IntensityChartPoint {
+  date: string;
+  fullDate: string;
+  intensidad: number;
+  emocion: string;
+}
+
+function IntensityTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
+  if (!active || !payload || payload.length === 0) return null;
+  const point = payload[0].payload as IntensityChartPoint;
+  return (
+    <div style={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "6px 10px" }}>
+      <p className="font-semibold mb-0.5">{point.fullDate}</p>
+      <p>{point.intensidad}/10 — {point.emocion}</p>
+    </div>
+  );
+}
+
+function IntensityChart({ records }: { records: AbcRecord[] }) {
+  const data: IntensityChartPoint[] = [...records]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map(r => ({
+      date: format(new Date(r.createdAt), "dd/MM", { locale: es }),
+      fullDate: format(new Date(r.createdAt), "d MMM yyyy", { locale: es }),
+      intensidad: r.intensidad,
+      emocion: r.emocion,
+    }));
+
+  return (
+    <div className="bg-secondary/10 border border-border/40 rounded-xl p-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Evolución de Intensidad Emocional</p>
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+          <YAxis domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+          <ReferenceLine y={7} stroke="hsl(var(--destructive))" strokeDasharray="4 4" strokeOpacity={0.5} />
+          <Tooltip content={<IntensityTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="intensidad"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            dot={{ r: 3, fill: "hsl(var(--primary))", strokeWidth: 0 }}
+            activeDot={{ r: 5 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-[10px] text-muted-foreground text-right mt-1">La línea roja punteada indica intensidad alta (≥7)</p>
     </div>
   );
 }
