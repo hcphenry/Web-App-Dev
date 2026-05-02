@@ -82,7 +82,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-xl shadow-primary/20 mb-4 border border-white/50">
             <Brain className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-4xl font-display font-bold text-foreground tracking-tight">ABC<span className="text-primary font-normal"> Positivamente</span></h1>
+          <h1 className="text-4xl font-display font-bold text-foreground tracking-tight"><span className="text-primary">POSITIVA</span>MENTE</h1>
           <p className="text-muted-foreground mt-2 text-lg">Registro Emocional Terapéutico</p>
         </div>
 

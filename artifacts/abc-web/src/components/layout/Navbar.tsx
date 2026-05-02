@@ -30,8 +30,8 @@ export function Navbar() {
             <div className="bg-primary/10 p-2 rounded-xl text-primary">
               <Brain className="h-6 w-6" />
             </div>
-            <span className="font-display font-bold text-xl text-foreground">
-              ABC<span className="text-primary font-normal">TCC</span>
+            <span className="font-display font-bold text-xl text-foreground tracking-tight">
+              <span className="text-primary">POSITIVA</span>MENTE
             </span>
           </div>
 
