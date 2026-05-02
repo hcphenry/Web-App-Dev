@@ -295,6 +295,45 @@ export async function runMigrations() {
            'bg-sky-100 text-sky-700', '/primera-consulta-ninos', TRUE, TRUE)
         ON CONFLICT (key) DO NOTHING
       `);
+
+      // Ensure the active catalog rows reflect the current product state
+      // (idempotente, sobrescribe cualquier toggle accidental que dejara las
+      // tareas como "Próximamente" para los pacientes ya en producción).
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key IN ('registro-abc','anamnesis-menor','primera-consulta-ninos')
+      `);
+
+      // Backfill: cada paciente (role='user') debe tener una asignación de cada
+      // tarea disponible. Para "Registro ABC" marcar 'completada' si ya hay
+      // registros legacy; resto de tareas quedan 'pendiente'. Nunca duplica.
+      await client.query(`
+        WITH t AS (SELECT id, key FROM therapeutic_tasks
+                    WHERE key IN ('registro-abc','anamnesis-menor','primera-consulta-ninos')),
+             stats AS (
+               SELECT user_id, MIN(created_at) AS first_at, MAX(created_at) AS last_at, COUNT(*) AS n
+                 FROM records GROUP BY user_id
+             )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL,
+               CASE WHEN t.key = 'registro-abc' AND COALESCE(s.n,0) > 0
+                    THEN 'pendiente'      -- ABC: paciente puede seguir agregando, queda accionable
+                    ELSE 'pendiente' END,
+               NOW(),
+               CASE WHEN t.key = 'registro-abc' THEN s.first_at END,
+               NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+          LEFT JOIN stats s ON s.user_id = u.id
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 8 (therapeutic tasks) skipped"); }
 
     // ── PHASE 9: anamnesis records (form responses for "Anamnesis menor 18") ──
