@@ -317,9 +317,23 @@ export async function runMigrations() {
         ON CONFLICT (key) DO NOTHING
       `);
 
-      // Por ahora "Registro ABC" y "Desarrollo Sesión" están disponibles para
-      // los pacientes. Las otras quedan en el catálogo pero como "Próximamente"
-      // (is_available=false) hasta que el equipo decida lanzarlas.
+      // "Desarrollo Sesión" es una tarea de uso clínico (notas de sesión del
+      // psicólogo), no del paciente. Reasignamos su target_role a 'psicologo'
+      // y limpiamos asignaciones obsoletas hechas a usuarios con role='user'.
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET target_role = 'psicologo', updated_at = NOW()
+         WHERE key = 'desarrollo-sesion' AND target_role <> 'psicologo'
+      `);
+      await client.query(`
+        DELETE FROM task_assignments ta
+         USING therapeutic_tasks t, users u
+         WHERE ta.task_id = t.id
+           AND ta.paciente_id = u.id
+           AND t.key = 'desarrollo-sesion'
+           AND u.role = 'user'
+      `);
+
       await client.query(`
         UPDATE therapeutic_tasks
            SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
@@ -364,14 +378,12 @@ export async function runMigrations() {
            )
       `);
 
-      // Backfill: cada paciente (role='user') tiene una asignación por cada
-      // tarea disponible (Registro ABC y Desarrollo Sesión). Quedan en
-      // 'pendiente' para que el paciente pueda registrarlas tantas veces como
-      // quiera (ambas son repetibles). Nunca duplica.
+      // Backfill: cada paciente (role='user') tiene una asignación pendiente
+      // de Registro ABC (repetible). Nunca duplica.
       await client.query(`
         WITH t AS (
           SELECT id FROM therapeutic_tasks
-           WHERE key IN ('registro-abc','desarrollo-sesion')
+           WHERE key IN ('registro-abc')
         )
         INSERT INTO task_assignments
           (task_id, paciente_id, assigned_by_id, status,

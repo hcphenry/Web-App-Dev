@@ -516,6 +516,7 @@ router.get("/mine", requirePaciente, async (req: any, res) => {
     .where(and(
       eq(taskAssignmentsTable.pacienteId, req.session.userId),
       eq(therapeuticTasksTable.isActive, true),
+      eq(therapeuticTasksTable.targetRole, "paciente"),
     ))
     .orderBy(desc(taskAssignmentsTable.assignedAt));
 
