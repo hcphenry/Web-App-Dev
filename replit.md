@@ -55,10 +55,11 @@ artifacts-monorepo/
 - Navigation bar: Inicio | Historial | Mi Cuenta
 
 ### Admin View
-- Dashboard at `/admin` (5 tabs)
+- Dashboard at `/admin` (7 tabs)
 - **Usuarios**: User management (create, edit, delete, change password). Patients have a teal eye-icon button to open their clinical profile.
 - **Registros**: View all ABC records filtered by user (card-based layout)
 - **Psicólogos**: Manage psychologists (CRUD with professional profile data)
+- **Contable** (Portal Contable): Billing/accounting module with sub-tabs Dashboard (KPIs + monthly chart), Tarifas (per-patient session rates with currency PEN/USD/EUR), Sesiones (session log with estado pagado/pendiente/deuda, filters, mark as paid, edit, delete), Reportes (per-patient and per-psychologist reports with comisión calc + CSV export). Backend `/api/contabilidad/*` enforces admin RBAC, atomic transactions for session creation with tarifa fallback, strict currency allowlist, and DB CHECK constraints (`monto >= 0`).
 - **Auditoría**: Audit log viewer with action filter and pagination (VIEW_PATIENT_PROFILE, ADMIN_UPDATE_PATIENT_PROFILE, UPDATE_OWN_PROFILE)
 - **Mi Cuenta**: Admin can change their own email/password
 - Password suggestion tool
@@ -114,6 +115,13 @@ All routes under `/api`:
 - `PUT /admin/psychologists/:id` — Update psychologist (admin only)
 - `DELETE /admin/psychologists/:id` — Delete psychologist (admin only)
 - `GET /admin/psychologists/:id/availability` — View psychologist slots (admin only)
+- `GET/POST /api/contabilidad/tarifas` — List/upsert per-patient session rates (admin only)
+- `DELETE /api/contabilidad/tarifas/:id` — Remove tariff (admin only)
+- `GET /api/contabilidad/sesiones` — List billed sessions, filters: estado, search, psicologoId, from, to (admin only)
+- `POST /api/contabilidad/sesiones` — Create billed session (transactional, auto-resolves monto from tarifa) (admin only)
+- `PATCH/DELETE /api/contabilidad/sesiones/:id` — Edit / delete billed session (admin only)
+- `GET /api/contabilidad/reportes/clinica|paciente|psicologo` — Aggregated billing reports (admin only)
+- `GET /api/contabilidad/pacientes` & `/psicologos` — Helper lists for the UI (admin only)
 - `GET /records` — Current user's records
 - `POST /records` — Create ABC record
 - `GET /psicologo/profile` — Psychologist's own profile

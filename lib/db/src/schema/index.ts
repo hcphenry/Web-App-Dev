@@ -4,3 +4,4 @@ export * from "./psychologists";
 export * from "./reclamaciones";
 export * from "./patientProfiles";
 export * from "./auditLogs";
+export * from "./accounting";
