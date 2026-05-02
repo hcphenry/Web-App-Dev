@@ -9,3 +9,4 @@ export * from "./transactions";
 export * from "./therapeuticTasks";
 export * from "./anamnesisRecords";
 export * from "./primeraConsultaRecords";
+export * from "./desarrolloSesionRecords";

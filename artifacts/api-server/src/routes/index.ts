@@ -10,6 +10,7 @@ import financieroRouter from "./financiero";
 import therapeuticTasksRouter from "./therapeuticTasks";
 import anamnesisRecordsRouter from "./anamnesisRecords";
 import primeraConsultaRecordsRouter from "./primeraConsultaRecords";
+import desarrolloSesionRecordsRouter from "./desarrolloSesionRecords";
 
 const router: IRouter = Router();
 
@@ -29,5 +30,6 @@ router.use("/financiero", financieroRouter);
 router.use("/tareas", therapeuticTasksRouter);
 router.use("/anamnesis", anamnesisRecordsRouter);
 router.use("/primera-consulta", primeraConsultaRecordsRouter);
+router.use("/desarrollo-sesion", desarrolloSesionRecordsRouter);
 
 export default router;

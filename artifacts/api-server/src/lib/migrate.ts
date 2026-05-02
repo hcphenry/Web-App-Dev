@@ -292,17 +292,21 @@ export async function runMigrations() {
           ('primera-consulta-ninos', 'Primera consulta niños',
            'Formulario de admisión para la primera consulta psicológica del menor: datos del niño y los padres, motivo, desarrollo, comportamiento, salud y objetivos terapéuticos.',
            'ClipboardList', 'from-sky-500 to-cyan-600',
-           'bg-sky-100 text-sky-700', '/primera-consulta-ninos', TRUE, TRUE)
+           'bg-sky-100 text-sky-700', '/primera-consulta-ninos', TRUE, TRUE),
+          ('desarrollo-sesion', 'Desarrollo Sesión',
+           'Formato de sesión psicológica para registrar objetivos, resumen, observaciones, evaluación y plan de acción de cada sesión. Puede completarse muchas veces.',
+           'Activity', 'from-emerald-500 to-teal-600',
+           'bg-emerald-100 text-emerald-700', '/desarrollo-sesion', TRUE, TRUE)
         ON CONFLICT (key) DO NOTHING
       `);
 
-      // Por ahora SOLO "Registro ABC" queda habilitada para los pacientes.
-      // Las otras tareas quedan en el catálogo pero como "Próximamente"
+      // Por ahora "Registro ABC" y "Desarrollo Sesión" están disponibles para
+      // los pacientes. Las otras quedan en el catálogo pero como "Próximamente"
       // (is_available=false) hasta que el equipo decida lanzarlas.
       await client.query(`
         UPDATE therapeutic_tasks
            SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
-         WHERE key = 'registro-abc'
+         WHERE key IN ('registro-abc','desarrollo-sesion')
       `);
       await client.query(`
         UPDATE therapeutic_tasks
@@ -310,22 +314,21 @@ export async function runMigrations() {
          WHERE key IN ('anamnesis-menor','primera-consulta-ninos','rueda-vida')
       `);
 
-      // Backfill: cada paciente (role='user') tiene asignación de "Registro ABC".
-      // Si ya tiene registros legacy se marca como 'pendiente' para que pueda
-      // seguir agregando libremente. Nunca duplica.
+      // Backfill: cada paciente (role='user') tiene una asignación por cada
+      // tarea disponible (Registro ABC y Desarrollo Sesión). Quedan en
+      // 'pendiente' para que el paciente pueda registrarlas tantas veces como
+      // quiera (ambas son repetibles). Nunca duplica.
       await client.query(`
-        WITH t AS (SELECT id FROM therapeutic_tasks WHERE key = 'registro-abc'),
-             stats AS (
-               SELECT user_id, MIN(created_at) AS first_at
-                 FROM records GROUP BY user_id
-             )
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key IN ('registro-abc','desarrollo-sesion')
+        )
         INSERT INTO task_assignments
           (task_id, paciente_id, assigned_by_id, status,
            assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), s.first_at, NULL,
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
                'Asignación masiva inicial.'
           FROM users u CROSS JOIN t
-          LEFT JOIN stats s ON s.user_id = u.id
          WHERE u.role = 'user'
            AND NOT EXISTS (
              SELECT 1 FROM task_assignments ta
@@ -373,6 +376,25 @@ export async function runMigrations() {
       await client.query(`CREATE INDEX IF NOT EXISTS primera_consulta_records_paciente_idx ON primera_consulta_records (paciente_id)`);
       await client.query(`CREATE INDEX IF NOT EXISTS primera_consulta_records_assignment_idx ON primera_consulta_records (assignment_id)`);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 10 (primera consulta records) skipped"); }
+
+    // ── PHASE 11: desarrollo sesión records (formato de sesión psicológica) ──
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS desarrollo_sesion_records (
+          id              SERIAL PRIMARY KEY,
+          paciente_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id   INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          fecha_sesion    TEXT,
+          hora_sesion     TEXT,
+          numero_sesion   TEXT,
+          data            JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS desarrollo_sesion_records_paciente_idx ON desarrollo_sesion_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS desarrollo_sesion_records_assignment_idx ON desarrollo_sesion_records (assignment_id)`);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 11 (desarrollo sesion records) skipped"); }
 
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
