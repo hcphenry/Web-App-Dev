@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, parseISO, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,7 +26,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { 
   Users, Database, Plus, Pencil, Trash2, ShieldAlert, KeyRound, Loader2, Search, UserCircle, BrainCircuit,
   ClipboardList, Eye, Save, Download, LayoutDashboard, TrendingUp, Activity, HeartPulse,
-  UserCheck, FileText, Clock, CheckCircle2, XCircle, AlertCircle
+  UserCheck, FileText, Clock, CheckCircle2, XCircle, AlertCircle, CalendarDays
 } from "lucide-react";
 
 interface DashboardStats {
@@ -111,6 +111,16 @@ interface Psicologo {
   dateOfBirth?: string | null; profession?: string | null;
   registrationDate?: string | null; deregistrationDate?: string | null;
   commissionPercentage?: string | null; licenseNumber?: string | null;
+}
+
+interface AvailabilitySlot {
+  id: number;
+  psychologistId: number;
+  startTime: string;
+  endTime: string;
+  isAvailable: boolean;
+  notes: string | null;
+  createdAt: string;
 }
 
 export default function AdminDashboard() {
@@ -484,6 +494,100 @@ export default function AdminDashboard() {
       createPsicologoMut.mutate(data);
     }
   };
+
+  // ─── AVAILABILITY (admin manages psychologist slots) ─────────────────────
+  const [availabilityPsicologo, setAvailabilityPsicologo] = useState<Psicologo | null>(null);
+  const [adminSlotModalOpen, setAdminSlotModalOpen] = useState(false);
+  const [editingAdminSlot, setEditingAdminSlot] = useState<AvailabilitySlot | null>(null);
+  const [deletingAdminSlot, setDeletingAdminSlot] = useState<AvailabilitySlot | null>(null);
+  const [adminSlotForm, setAdminSlotForm] = useState({ startTime: "", endTime: "", notes: "", isAvailable: true });
+
+  const { data: adminSlots = [], isLoading: loadingAdminSlots } = useQuery<AvailabilitySlot[]>({
+    queryKey: ["admin-availability", availabilityPsicologo?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/psychologists/${availabilityPsicologo!.id}/availability`);
+      if (!res.ok) throw new Error("Error al cargar disponibilidad");
+      return res.json();
+    },
+    enabled: !!availabilityPsicologo,
+  });
+
+  const createAdminSlot = useMutation({
+    mutationFn: async (data: { startTime: string; endTime: string; notes: string }) => {
+      const res = await fetch(`/api/admin/psychologists/${availabilityPsicologo!.id}/availability`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al crear horario");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-availability", availabilityPsicologo?.id] });
+      toast({ title: "Horario registrado" });
+      setAdminSlotModalOpen(false);
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const updateAdminSlot = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await fetch(`/api/admin/psychologists/${availabilityPsicologo!.id}/availability/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al actualizar horario");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-availability", availabilityPsicologo?.id] });
+      toast({ title: "Horario actualizado" });
+      setAdminSlotModalOpen(false);
+      setEditingAdminSlot(null);
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const deleteAdminSlot = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/admin/psychologists/${availabilityPsicologo!.id}/availability/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-availability", availabilityPsicologo?.id] });
+      toast({ title: "Horario eliminado" });
+      setDeletingAdminSlot(null);
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const openCreateAdminSlot = () => {
+    setEditingAdminSlot(null);
+    setAdminSlotForm({ startTime: "", endTime: "", notes: "", isAvailable: true });
+    setAdminSlotModalOpen(true);
+  };
+
+  const openEditAdminSlot = (slot: AvailabilitySlot) => {
+    setEditingAdminSlot(slot);
+    setAdminSlotForm({
+      startTime: slot.startTime.slice(0, 16),
+      endTime: slot.endTime.slice(0, 16),
+      notes: slot.notes || "",
+      isAvailable: slot.isAvailable,
+    });
+    setAdminSlotModalOpen(true);
+  };
+
+  const handleAdminSlotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingAdminSlot) {
+      updateAdminSlot.mutate({ id: editingAdminSlot.id, data: adminSlotForm });
+    } else {
+      createAdminSlot.mutate(adminSlotForm);
+    }
+  };
+
+  const upcomingAdminSlots = adminSlots.filter(s => isAfter(parseISO(s.endTime), new Date()));
+  const pastAdminSlots = adminSlots.filter(s => !isAfter(parseISO(s.endTime), new Date()));
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -925,6 +1029,9 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4">{p.commissionPercentage ? `${p.commissionPercentage}%` : <span className="text-muted-foreground/50 text-xs italic">—</span>}</td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-violet-600 border-violet-200 hover:bg-violet-50" title="Ver disponibilidad" onClick={() => setAvailabilityPsicologo(p)}>
+                              <CalendarDays className="w-3.5 h-3.5" />
+                            </Button>
                             <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-primary border-primary/20" onClick={() => openEditPsicologo(p)}>
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
@@ -1530,6 +1637,191 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── AVAILABILITY MANAGEMENT DIALOG ── */}
+      <Dialog open={!!availabilityPsicologo} onOpenChange={open => { if (!open) setAvailabilityPsicologo(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-violet-600" />
+              Disponibilidad — {availabilityPsicologo?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex justify-end mb-2">
+            <Button onClick={openCreateAdminSlot} className="rounded-full bg-violet-600 hover:bg-violet-700 shadow-md">
+              <Plus className="w-4 h-4 mr-2" /> Agregar Horario
+            </Button>
+          </div>
+
+          {loadingAdminSlots ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-violet-600" /></div>
+          ) : adminSlots.length === 0 ? (
+            <div className="rounded-2xl p-10 text-center border border-dashed border-violet-200 bg-violet-50/30">
+              <CalendarDays className="w-10 h-10 text-violet-300 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm">No hay horarios registrados para este psicólogo.</p>
+              <Button onClick={openCreateAdminSlot} className="mt-4 rounded-full bg-violet-600 hover:bg-violet-700">Agregar primer horario</Button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {upcomingAdminSlots.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Próximos</p>
+                  <div className="space-y-2">
+                    {upcomingAdminSlots.map(slot => {
+                      const start = parseISO(slot.startTime);
+                      const end = parseISO(slot.endTime);
+                      const durMin = Math.round((end.getTime() - start.getTime()) / 60000);
+                      return (
+                        <div key={slot.id} className="glass-panel rounded-xl p-4 border flex flex-wrap gap-3 items-start justify-between hover:shadow-md transition-shadow">
+                          <div className="flex gap-3 items-start">
+                            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                              <Clock className="w-4 h-4 text-violet-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm">{format(start, "EEEE d 'de' MMMM yyyy", { locale: es })}</p>
+                              <p className="text-sm text-muted-foreground">{format(start, "HH:mm")} — {format(end, "HH:mm")} <span className="ml-1 text-xs">({durMin} min)</span></p>
+                              {slot.notes && <p className="text-xs text-muted-foreground mt-1 italic">"{slot.notes}"</p>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {slot.isAvailable
+                              ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Disponible</span>
+                              : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1"><XCircle className="w-3 h-3" /> No disponible</span>
+                            }
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-primary hover:bg-primary/10" onClick={() => openEditAdminSlot(slot)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10" onClick={() => setDeletingAdminSlot(slot)}><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {pastAdminSlots.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pasados</p>
+                  <div className="space-y-2 opacity-60">
+                    {pastAdminSlots.map(slot => {
+                      const start = parseISO(slot.startTime);
+                      const end = parseISO(slot.endTime);
+                      const durMin = Math.round((end.getTime() - start.getTime()) / 60000);
+                      return (
+                        <div key={slot.id} className="glass-panel rounded-xl p-4 border flex flex-wrap gap-3 items-start justify-between">
+                          <div className="flex gap-3 items-start">
+                            <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm">{format(start, "EEEE d 'de' MMMM yyyy", { locale: es })}</p>
+                              <p className="text-sm text-muted-foreground">{format(start, "HH:mm")} — {format(end, "HH:mm")} <span className="ml-1 text-xs">({durMin} min)</span></p>
+                              {slot.notes && <p className="text-xs text-muted-foreground mt-1 italic">"{slot.notes}"</p>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-4 border-t mt-4">
+            <Button variant="outline" className="rounded-xl" onClick={() => setAvailabilityPsicologo(null)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── SLOT FORM DIALOG (create / edit) ── */}
+      <Dialog open={adminSlotModalOpen} onOpenChange={open => { if (!open) { setAdminSlotModalOpen(false); setEditingAdminSlot(null); } }}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">{editingAdminSlot ? "Editar Horario" : "Agregar Horario"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAdminSlotSubmit} className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label>Inicio</Label>
+              <Input
+                type="datetime-local"
+                className="rounded-xl bg-secondary/30"
+                value={adminSlotForm.startTime}
+                onChange={e => setAdminSlotForm(f => ({ ...f, startTime: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Fin</Label>
+              <Input
+                type="datetime-local"
+                className="rounded-xl bg-secondary/30"
+                value={adminSlotForm.endTime}
+                onChange={e => setAdminSlotForm(f => ({ ...f, endTime: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notas (opcional)</Label>
+              <Input
+                className="rounded-xl bg-secondary/30"
+                value={adminSlotForm.notes}
+                onChange={e => setAdminSlotForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Ej. Solo videollamada, Consulta presencial..."
+              />
+            </div>
+            {editingAdminSlot && (
+              <div className="flex items-center gap-3">
+                <Label>Disponible</Label>
+                <Select
+                  value={adminSlotForm.isAvailable ? "true" : "false"}
+                  onValueChange={v => setAdminSlotForm(f => ({ ...f, isAvailable: v === "true" }))}
+                >
+                  <SelectTrigger className="rounded-xl bg-secondary/30 w-36"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Sí</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setAdminSlotModalOpen(false); setEditingAdminSlot(null); }}>Cancelar</Button>
+              <Button type="submit" disabled={createAdminSlot.isPending || updateAdminSlot.isPending} className="rounded-xl bg-violet-600 hover:bg-violet-700">
+                {(createAdminSlot.isPending || updateAdminSlot.isPending) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {editingAdminSlot ? "Guardar Cambios" : "Registrar Horario"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── SLOT DELETE CONFIRMATION ── */}
+      <AlertDialog open={!!deletingAdminSlot} onOpenChange={open => { if (!open) setDeletingAdminSlot(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar horario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingAdminSlot && (() => {
+                const start = parseISO(deletingAdminSlot.startTime);
+                const end = parseISO(deletingAdminSlot.endTime);
+                return `${format(start, "EEEE d 'de' MMMM yyyy HH:mm", { locale: es })} — ${format(end, "HH:mm")}`;
+              })()}
+              <br />Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-destructive hover:bg-destructive/90"
+              onClick={() => deletingAdminSlot && deleteAdminSlot.mutate(deletingAdminSlot.id)}
+              disabled={deleteAdminSlot.isPending}
+            >
+              {deleteAdminSlot.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -178,6 +178,61 @@ router.get("/admin/psychologists/:id/availability", requireAdmin, async (req, re
   res.json(slots.map(s => ({ ...s, startTime: s.startTime.toISOString(), endTime: s.endTime.toISOString(), createdAt: s.createdAt.toISOString() })));
 });
 
+router.post("/admin/psychologists/:id/availability", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const { startTime, endTime, notes } = req.body;
+  if (!startTime || !endTime) { res.status(400).json({ error: "Hora de inicio y fin son obligatorias" }); return; }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (end <= start) { res.status(400).json({ error: "La hora de fin debe ser posterior a la hora de inicio" }); return; }
+
+  const [slot] = await db.insert(availabilitySlotsTable).values({
+    psychologistId: id,
+    startTime: start,
+    endTime: end,
+    notes: notes || null,
+  }).returning();
+
+  res.status(201).json({ ...slot, startTime: slot.startTime.toISOString(), endTime: slot.endTime.toISOString(), createdAt: slot.createdAt.toISOString() });
+});
+
+router.put("/admin/psychologists/:id/availability/:slotId", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const slotId = parseInt(req.params.slotId);
+  if (isNaN(id) || isNaN(slotId)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const { startTime, endTime, notes, isAvailable } = req.body;
+  const updates: Record<string, any> = {};
+  if (startTime) updates.startTime = new Date(startTime);
+  if (endTime) updates.endTime = new Date(endTime);
+  if (notes !== undefined) updates.notes = notes;
+  if (isAvailable !== undefined) updates.isAvailable = isAvailable;
+
+  const [slot] = await db.update(availabilitySlotsTable)
+    .set(updates)
+    .where(and(eq(availabilitySlotsTable.id, slotId), eq(availabilitySlotsTable.psychologistId, id)))
+    .returning();
+
+  if (!slot) { res.status(404).json({ error: "Horario no encontrado" }); return; }
+  res.json({ ...slot, startTime: slot.startTime.toISOString(), endTime: slot.endTime.toISOString(), createdAt: slot.createdAt.toISOString() });
+});
+
+router.delete("/admin/psychologists/:id/availability/:slotId", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const slotId = parseInt(req.params.slotId);
+  if (isNaN(id) || isNaN(slotId)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const [deleted] = await db.delete(availabilitySlotsTable)
+    .where(and(eq(availabilitySlotsTable.id, slotId), eq(availabilitySlotsTable.psychologistId, id)))
+    .returning();
+
+  if (!deleted) { res.status(404).json({ error: "Horario no encontrado" }); return; }
+  res.json({ message: "Horario eliminado" });
+});
+
 // ─── PSICÓLOGO: PERFIL Y DISPONIBILIDAD ──────────────────────────────────
 
 router.get("/psicologo/profile", requirePsicologo, async (req, res) => {
