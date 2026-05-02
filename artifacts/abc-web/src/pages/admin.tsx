@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import PortalContable from "@/components/PortalContable";
 import PortalFinanciero from "@/components/PortalFinanciero";
+import PortalAgenda from "@/components/PortalAgenda";
 
 interface DashboardStats {
   totals: {
@@ -698,7 +699,7 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-6xl grid-cols-4 md:grid-cols-8 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
+          <TabsList className="grid w-full max-w-7xl grid-cols-3 md:grid-cols-9 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto">
             <TabsTrigger value="dashboard" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <LayoutDashboard className="w-4 h-4 mr-1.5" /> Dashboard
             </TabsTrigger>
@@ -710,6 +711,9 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="psicologos" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <BrainCircuit className="w-4 h-4 mr-1.5" /> Psicólogos
+            </TabsTrigger>
+            <TabsTrigger value="agenda" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <CalendarDays className="w-4 h-4 mr-1.5" /> Agenda
             </TabsTrigger>
             <TabsTrigger value="contable" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Wallet className="w-4 h-4 mr-1.5" /> Contable
@@ -1150,6 +1154,11 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </div>
+          </TabsContent>
+
+          {/* AGENDA TAB */}
+          <TabsContent value="agenda" className="mt-6">
+            <PortalAgenda />
           </TabsContent>
 
           {/* CONTABLE TAB */}

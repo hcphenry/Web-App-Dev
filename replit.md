@@ -55,10 +55,11 @@ artifacts-monorepo/
 - Navigation bar: Inicio | Historial | Mi Cuenta
 
 ### Admin View
-- Dashboard at `/admin` (8 tabs)
+- Dashboard at `/admin` (9 tabs)
 - **Usuarios**: User management (create, edit, delete, change password). Patients have a teal eye-icon button to open their clinical profile.
 - **Registros**: View all ABC records filtered by user (card-based layout)
 - **Psicólogos**: Manage psychologists (CRUD with professional profile data)
+- **Agenda** (Portal Agenda): Calendar-first scheduling portal. Period-scoped KPIs (sesiones, recaudado, pendiente, deuda), interactive day/week/month calendar (events color-coded by estadoPago, click empty slot → create, click event → edit/mark-paid/delete), psicólogo + estado filters, Tarifas dialog (list/create/edit/delete patient rates), and downloadable CSV reports per paciente / psicólogo / clínica. Frontend calls `/api/agenda/*` which is mounted as an **alias of `accountingRouter`** in `routes/index.ts` (same handlers, same `requireAdmin`, no logic duplication).
 - **Contable** (Portal Contable): Billing/accounting module with sub-tabs Dashboard (KPIs + monthly chart), Tarifas (per-patient session rates with currency PEN/USD/EUR), Sesiones (session log with estado pagado/pendiente/deuda, filters, mark as paid, edit, delete), Reportes (per-patient and per-psychologist reports with comisión calc + CSV export). Backend `/api/contabilidad/*` enforces admin RBAC, atomic transactions for session creation with tarifa fallback, strict currency allowlist, and DB CHECK constraints (`monto >= 0`).
 - **Financiero** (Portal Financiero): Bank statement ingestion module. Sub-tabs Dashboard (4 KPIs Ingresos/Egresos/Balance Neto/Total + breakdown por banco) and Transacciones (paginated table with filters by banco/usuario/search/date-range/monto-range, inline edit of paciente assignment and banco label, CSV/Excel export). Upload modal accepts `.xlsx` (10MB max) and auto-detects bank by column signature for BCP/BBVA/SCOTIABANK/INTERBANK (Interbank also reads "Cargo" column as negative). Excel dates parsed as Lima TZ (00:00 = 05:00Z), strict — no host-TZ fallback. Deduplication via SHA-256 hash over `banco|cuentaBancaria|fechaIso|monto|numeroOperacion|descripcion` so same op in different accounts is not collapsed. All routes admin-only with `requireAdmin`; `loadUserRole` clears stale session when DB user is missing.
 - **Auditoría**: Audit log viewer with action filter and pagination (VIEW_PATIENT_PROFILE, ADMIN_UPDATE_PATIENT_PROFILE, UPDATE_OWN_PROFILE, FINANCIERO_*)
@@ -124,6 +125,7 @@ All routes under `/api`:
 - `PATCH/DELETE /api/contabilidad/sesiones/:id` — Edit / delete billed session (admin only)
 - `GET /api/contabilidad/reportes/clinica|paciente|psicologo` — Aggregated billing reports (admin only)
 - `GET /api/contabilidad/pacientes` & `/psicologos` — Helper lists for the UI (admin only)
+- `GET/POST/DELETE /api/agenda/tarifas`, `GET/POST/PATCH/DELETE /api/agenda/sesiones`, `GET /api/agenda/reportes/{clinica|paciente|psicologo}`, `GET /api/agenda/{pacientes|psicologos}` — Portal Agenda alias of `accountingRouter` (identical handlers, identical `requireAdmin`)
 - `GET /records` — Current user's records
 - `POST /records` — Create ABC record
 - `GET /psicologo/profile` — Psychologist's own profile

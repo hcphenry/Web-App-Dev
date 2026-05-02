@@ -17,6 +17,11 @@ router.use(recordsRouter);
 router.use(psychologistsRouter);
 router.use(patientProfilesRouter);
 router.use("/contabilidad", accountingRouter);
+// Portal Agenda reuses the accounting endpoints (tarifas, sesiones,
+// reportes). The handlers already enforce requireAdmin and the data model
+// is identical, so we expose the same router under /agenda as an alias to
+// satisfy the prompt's /api/agenda/* contract without duplicating logic.
+router.use("/agenda", accountingRouter);
 router.use("/financiero", financieroRouter);
 
 export default router;
