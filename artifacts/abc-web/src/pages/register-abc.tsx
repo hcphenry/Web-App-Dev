@@ -26,6 +26,7 @@ import {
   Home, Lock, ChevronRight, LayoutDashboard, Circle, ClipboardList,
   Clock as ClockIcon, PlayCircle, type LucideIcon
 } from "lucide-react";
+import AnamnesisMenorForm from "@/components/AnamnesisMenorForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -76,7 +77,8 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis'>('dashboard');
+  const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -246,6 +248,7 @@ export default function RegisterAbc() {
     ? myAssignments.map((a) => {
         const Icon = TASK_ICON_MAP[a.taskIcon] ?? ClipboardList;
         const isABC = a.taskKey === 'registro-abc';
+        const isAnamnesis = a.taskKey === 'anamnesis-menor';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -271,6 +274,7 @@ export default function RegisterAbc() {
             // Mark as started if still pending
             if (a.status === 'pendiente') void markStartedMut(a.id);
             if (isABC) { resetForm(); setView('form'); }
+            else if (isAnamnesis) { setActiveAnamnesisAssignment(a.id); setView('anamnesis'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           onComplete: a.status !== 'completada' && a.status !== 'cancelada'
@@ -338,6 +342,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Mi Cuenta</h1>
                 <p className="text-muted-foreground mt-1">Gestiona tu perfil y configuración</p>
+              </>
+            )}
+            {view === 'anamnesis' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Anamnesis menor 18</h1>
+                <p className="text-muted-foreground mt-1">Historia clínica infantil</p>
               </>
             )}
           </div>
@@ -456,6 +466,14 @@ export default function RegisterAbc() {
               })}
             </div>
           </div>
+        )}
+
+        {view === 'anamnesis' && (
+          <AnamnesisMenorForm
+            assignmentId={activeAnamnesisAssignment}
+            onCancel={() => { setView('dashboard'); setActiveAnamnesisAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveAnamnesisAssignment(null); }}
+          />
         )}
 
         {view === 'history' && (
