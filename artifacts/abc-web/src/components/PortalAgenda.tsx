@@ -40,6 +40,8 @@ interface Tarifa {
 }
 interface Paciente {
   id: number; name: string; email: string; costoTerapia: string | null;
+  psicologoAsignadoId: number | null;
+  psicologoAsignadoName: string | null;
 }
 interface Psicologo {
   id: number; name: string; email: string; comisionPct: string | null;
@@ -107,6 +109,7 @@ export default function PortalAgenda() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
   const [filterPsicologo, setFilterPsicologo] = useState("all");
+  const [filterPaciente, setFilterPaciente] = useState("all");
   const [filterEstado, setFilterEstado] = useState("all");
 
   const range = useMemo(() => {
@@ -160,9 +163,10 @@ export default function PortalAgenda() {
     p.set("from", range.from.toISOString());
     p.set("to", range.to.toISOString());
     if (filterPsicologo !== "all") p.set("psicologoId", filterPsicologo);
+    if (filterPaciente !== "all") p.set("pacienteId", filterPaciente);
     if (filterEstado !== "all") p.set("estado", filterEstado);
     return p.toString();
-  }, [range, filterPsicologo, filterEstado]);
+  }, [range, filterPsicologo, filterPaciente, filterEstado]);
 
   const { data: sesiones = [], isLoading: loadingSesiones } = useQuery<Sesion[]>({
     queryKey: ["agenda", "sesiones", sesionesQuery],
@@ -173,8 +177,8 @@ export default function PortalAgenda() {
     },
   });
 
-  // ─── Data: KPIs (clinica report scoped to current range) ───────────────
-  const kpiQuery = useMemo(() => {
+  // ─── Data: clínica monthly report (used only by the "Reportes → Clínica" tab) ─
+  const clinicaQuery = useMemo(() => {
     const p = new URLSearchParams();
     p.set("from", range.from.toISOString());
     p.set("to", range.to.toISOString());
@@ -182,13 +186,29 @@ export default function PortalAgenda() {
   }, [range]);
 
   const { data: clinica } = useQuery<ReporteClinica>({
-    queryKey: ["agenda", "clinica", kpiQuery],
+    queryKey: ["agenda", "clinica", clinicaQuery],
     queryFn: async () => {
-      const r = await fetch(`/api/agenda/reportes/clinica?${kpiQuery}`);
-      if (!r.ok) throw new Error("Error cargando KPIs");
+      const r = await fetch(`/api/agenda/reportes/clinica?${clinicaQuery}`);
+      if (!r.ok) throw new Error("Error cargando reporte clínica");
       return r.json();
     },
   });
+
+  // ─── KPIs derived from filtered sesiones (so they reflect ALL active filters) ─
+  const kpis = useMemo(() => {
+    const k = {
+      totalSesiones: sesiones.length,
+      totalRecaudado: 0, totalPendiente: 0, totalDeuda: 0,
+      sesionesPagadas: 0, sesionesPendientes: 0, sesionesDeuda: 0,
+    };
+    for (const s of sesiones) {
+      const m = Number(s.montoCobrado) || 0;
+      if (s.estadoPago === "pagado") { k.totalRecaudado += m; k.sesionesPagadas++; }
+      else if (s.estadoPago === "pendiente") { k.totalPendiente += m; k.sesionesPendientes++; }
+      else if (s.estadoPago === "deuda") { k.totalDeuda += m; k.sesionesDeuda++; }
+    }
+    return k;
+  }, [sesiones]);
 
   // ─── Data: tarifas list (for tarifas modal/list) ───────────────────────
   const { data: tarifas = [], isLoading: loadingTarifas } = useQuery<Tarifa[]>({
@@ -205,6 +225,7 @@ export default function PortalAgenda() {
   const [editingSesion, setEditingSesion] = useState<Sesion | null>(null);
   const [sesionForm, setSesionForm] = useState({
     pacienteId: "", psicologoId: "", fechaSesion: "", montoCobrado: "",
+    moneda: "PEN",
     estadoPago: "pendiente", metodoPago: "", notas: "",
   });
 
@@ -215,9 +236,35 @@ export default function PortalAgenda() {
     setSesionForm({
       pacienteId: "", psicologoId: "",
       fechaSesion: toLocalInput(base),
-      montoCobrado: "", estadoPago: "pendiente", metodoPago: "", notas: "",
+      montoCobrado: "", moneda: "PEN",
+      estadoPago: "pendiente", metodoPago: "", notas: "",
     });
     setSesionModalOpen(true);
+  };
+
+  // Auto-fill psicólogo (from patient's assigned psicólogo) and monto + moneda
+  // (from tarifa) when paciente is selected. Both fields remain editable so the
+  // admin can override. If the new paciente has NO tarifa, clear monto/moneda
+  // to avoid carrying over stale values from a previously selected paciente.
+  // Skipped while editing an existing session to preserve historical values.
+  const handlePacienteChange = (v: string) => {
+    setSesionForm(f => {
+      const next = { ...f, pacienteId: v };
+      if (v && !editingSesion) {
+        const pid = parseInt(v);
+        const tarifa = tarifas.find(t => t.pacienteId === pid);
+        const paciente = pacientes.find(p => p.id === pid);
+        if (tarifa) {
+          next.montoCobrado = String(tarifa.montoPorSesion);
+          next.moneda = tarifa.moneda;
+        } else {
+          next.montoCobrado = "";
+          next.moneda = "PEN";
+        }
+        if (paciente?.psicologoAsignadoId) next.psicologoId = String(paciente.psicologoAsignadoId);
+      }
+      return next;
+    });
   };
 
   const openEditSesion = (s: Sesion) => {
@@ -227,6 +274,7 @@ export default function PortalAgenda() {
       psicologoId: String(s.psicologoId),
       fechaSesion: toLocalInput(new Date(s.fechaSesion)),
       montoCobrado: String(s.montoCobrado),
+      moneda: s.moneda || "PEN",
       estadoPago: s.estadoPago,
       metodoPago: s.metodoPago || "",
       notas: s.notas || "",
@@ -244,7 +292,13 @@ export default function PortalAgenda() {
         metodoPago: sesionForm.metodoPago || null,
         notas: sesionForm.notas || null,
       };
-      if (sesionForm.montoCobrado) body.montoCobrado = parseFloat(sesionForm.montoCobrado);
+      // Send montoCobrado only when an explicit value is in the form.
+      // When sent, also send `moneda` so currency stays in sync with the tarifa
+      // (otherwise backend would default to PEN even for USD/EUR tarifas).
+      if (sesionForm.montoCobrado) {
+        body.montoCobrado = parseFloat(sesionForm.montoCobrado);
+        body.moneda = sesionForm.moneda || "PEN";
+      }
       const url = editingSesion
         ? `/api/agenda/sesiones/${editingSesion.id}`
         : "/api/agenda/sesiones";
@@ -570,8 +624,6 @@ export default function PortalAgenda() {
   };
 
   // ─── Render ────────────────────────────────────────────────────────────
-  const kpis = clinica?.kpis;
-
   return (
     <div className="space-y-6">
       {/* Header / toolbar */}
@@ -604,7 +656,7 @@ export default function PortalAgenda() {
             <span className="text-xs text-slate-500">Sesiones</span>
             <CalendarDays className="w-4 h-4 text-teal-600" />
           </div>
-          <div className="text-2xl font-semibold text-slate-800">{kpis?.totalSesiones ?? 0}</div>
+          <div className="text-2xl font-semibold text-slate-800">{kpis.totalSesiones}</div>
           <div className="text-[11px] text-slate-500 mt-1">en el periodo</div>
         </div>
         <div className="glass-panel rounded-2xl p-4">
@@ -612,24 +664,24 @@ export default function PortalAgenda() {
             <span className="text-xs text-slate-500">Recaudado</span>
             <DollarSign className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-semibold text-emerald-700">{fmtMoney(kpis?.totalRecaudado ?? 0)}</div>
-          <div className="text-[11px] text-slate-500 mt-1">{kpis?.sesionesPagadas ?? 0} pagadas</div>
+          <div className="text-2xl font-semibold text-emerald-700">{fmtMoney(kpis.totalRecaudado)}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{kpis.sesionesPagadas} pagadas</div>
         </div>
         <div className="glass-panel rounded-2xl p-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-slate-500">Pendiente</span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-2xl font-semibold text-amber-700">{fmtMoney(kpis?.totalPendiente ?? 0)}</div>
-          <div className="text-[11px] text-slate-500 mt-1">{kpis?.sesionesPendientes ?? 0} pendientes</div>
+          <div className="text-2xl font-semibold text-amber-700">{fmtMoney(kpis.totalPendiente)}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{kpis.sesionesPendientes} pendientes</div>
         </div>
         <div className="glass-panel rounded-2xl p-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-slate-500">Deuda</span>
             <AlertCircle className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-2xl font-semibold text-rose-700">{fmtMoney(kpis?.totalDeuda ?? 0)}</div>
-          <div className="text-[11px] text-slate-500 mt-1">{kpis?.sesionesDeuda ?? 0} en deuda</div>
+          <div className="text-2xl font-semibold text-rose-700">{fmtMoney(kpis.totalDeuda)}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{kpis.sesionesDeuda} en deuda</div>
         </div>
       </div>
 
@@ -649,6 +701,15 @@ export default function PortalAgenda() {
             <span className="ml-2 text-sm font-medium text-slate-700 capitalize">{periodLabel}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Select value={filterPaciente} onValueChange={setFilterPaciente}>
+              <SelectTrigger className="rounded-full h-8 w-[180px] text-xs"><SelectValue placeholder="Paciente" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">Todos los pacientes</SelectItem>
+                {pacientes.map(p => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={filterPsicologo} onValueChange={setFilterPsicologo}>
               <SelectTrigger className="rounded-full h-8 w-[180px] text-xs"><SelectValue placeholder="Psicólogo" /></SelectTrigger>
               <SelectContent className="max-h-72">
@@ -846,7 +907,7 @@ export default function PortalAgenda() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Paciente</Label>
-                <Select value={sesionForm.pacienteId} onValueChange={v => setSesionForm(f => ({ ...f, pacienteId: v }))}>
+                <Select value={sesionForm.pacienteId} onValueChange={handlePacienteChange}>
                   <SelectTrigger className="rounded-lg"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                   <SelectContent className="max-h-72">
                     {pacientes.map(p => (
@@ -854,6 +915,17 @@ export default function PortalAgenda() {
                     ))}
                   </SelectContent>
                 </Select>
+                {sesionForm.pacienteId && !editingSesion && (() => {
+                  const pid = parseInt(sesionForm.pacienteId);
+                  const t = tarifas.find(x => x.pacienteId === pid);
+                  const p = pacientes.find(x => x.id === pid);
+                  const bits: string[] = [];
+                  if (p?.psicologoAsignadoName) bits.push(`Psic. ${p.psicologoAsignadoName}`);
+                  if (t) bits.push(`Tarifa ${fmtMoney(t.montoPorSesion, t.moneda)}`);
+                  return bits.length
+                    ? <p className="text-[10px] text-teal-700 mt-1">{bits.join(" · ")}</p>
+                    : null;
+                })()}
               </div>
               <div>
                 <Label>Psicólogo</Label>

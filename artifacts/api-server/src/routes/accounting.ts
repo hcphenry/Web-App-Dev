@@ -572,6 +572,8 @@ router.get("/reportes/psicologo", requireAdmin, async (req, res) => {
 });
 
 // GET /api/contabilidad/pacientes — list patients (helpers for forms)
+// Includes the assigned psicólogo (resolved from patient_profiles.psicologa_asignada
+// → users where role='psicologo' AND name matches case-insensitively).
 router.get("/pacientes", requireAdmin, async (_req, res) => {
   const rows = await db
     .select({
@@ -579,12 +581,32 @@ router.get("/pacientes", requireAdmin, async (_req, res) => {
       name: usersTable.name,
       email: usersTable.email,
       costoTerapia: patientProfilesTable.costoTerapia,
+      psicologaAsignada: patientProfilesTable.psicologaAsignada,
     })
     .from(usersTable)
     .leftJoin(patientProfilesTable, eq(patientProfilesTable.userId, usersTable.id))
     .where(eq(usersTable.role, "user"))
     .orderBy(sql`lower(${usersTable.name})`);
-  res.json(rows);
+
+  // Resolve assigned psicólogo (id+name) for each patient using a single side query
+  const psicologos = await db
+    .select({ id: usersTable.id, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.role, "psicologo"));
+  const psicoByLowerName = new Map(psicologos.map(p => [p.name.trim().toLowerCase(), p]));
+
+  res.json(rows.map(r => {
+    const key = (r.psicologaAsignada ?? "").trim().toLowerCase();
+    const psi = key ? psicoByLowerName.get(key) ?? null : null;
+    return {
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      costoTerapia: r.costoTerapia,
+      psicologoAsignadoId: psi?.id ?? null,
+      psicologoAsignadoName: psi?.name ?? null,
+    };
+  }));
 });
 
 // GET /api/contabilidad/psicologos — list psicólogos
