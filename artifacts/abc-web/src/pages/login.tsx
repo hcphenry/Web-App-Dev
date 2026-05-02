@@ -70,7 +70,7 @@ export default function Login() {
       {/* Background Image & Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
-          src={`${import.meta.env.BASE_URL}images/heropng-bg.`} 
+          src={`${import.meta.env.BASE_URL}images/hero-bg.png`} 
           alt="Abstract calm background" 
           className="w-full h-full object-cover opacity-60 mix-blend-multiply"
         />

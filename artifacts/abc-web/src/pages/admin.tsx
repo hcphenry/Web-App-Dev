@@ -211,11 +211,14 @@ export default function AdminDashboard() {
 
   const openEditModal = async (user: User) => {
     setEditingUser(user);
-    setEditingRole(user.role as "admin" | "user");
+    // The "Editar Usuario" form only handles admin/user roles. Psicólogos are
+    // managed through a separate modal, but be defensive in case one slips in.
+    const formRole: "admin" | "user" = user.role === "admin" ? "admin" : "user";
+    setEditingRole(formRole);
     setAssignedPsicologoId("none");
     setOriginalAssignedName(null);
     assignmentTouchedRef.current = false;
-    reset({ name: user.name, email: user.email, password: "", role: user.role });
+    reset({ name: user.name, email: user.email, password: "", role: formRole });
     setUserModalOpen(true);
     // For patients, pre-load currently assigned psychologist (if any).
     // Preselection of the dropdown by name happens in a useEffect once
