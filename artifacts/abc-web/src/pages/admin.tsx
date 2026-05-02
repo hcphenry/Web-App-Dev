@@ -310,6 +310,7 @@ export default function AdminDashboard() {
   const [auditToFilter, setAuditToFilter] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [auditPage, setAuditPage] = useState(0);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const AUDIT_LIMIT = 25;
 
@@ -1017,7 +1018,12 @@ export default function AdminDashboard() {
                     ) : auditLogs.length === 0 ? (
                       <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No hay registros de auditoría.</td></tr>
                     ) : auditLogs.map(log => (
-                      <tr key={log.id} className="border-b border-border/50 hover:bg-white/40 transition-colors">
+                      <tr
+                        key={log.id}
+                        className="border-b border-border/50 hover:bg-white/60 transition-colors cursor-pointer"
+                        onClick={() => setSelectedAuditLog(log)}
+                        title="Ver detalles"
+                      >
                         <td className="px-6 py-3 text-muted-foreground whitespace-nowrap text-xs">
                           {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es })}
                         </td>
@@ -1461,6 +1467,67 @@ export default function AdminDashboard() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* AUDIT LOG DETAIL MODAL */}
+      <Dialog open={!!selectedAuditLog} onOpenChange={open => { if (!open) setSelectedAuditLog(null); }}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              Detalle de Auditoría
+            </DialogTitle>
+          </DialogHeader>
+          {selectedAuditLog && (() => {
+            let parsedDetails: unknown = null;
+            if (selectedAuditLog.details) {
+              try { parsedDetails = JSON.parse(selectedAuditLog.details); } catch { parsedDetails = selectedAuditLog.details; }
+            }
+            return (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-start">
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">Fecha</span>
+                  <span className="font-mono text-xs">
+                    {format(new Date(selectedAuditLog.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: es })}
+                  </span>
+
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">Actor</span>
+                  <span>{selectedAuditLog.actorName || `—`}{selectedAuditLog.actorId ? ` (ID ${selectedAuditLog.actorId})` : ''}</span>
+
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">Acción</span>
+                  <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-100 w-fit">
+                    {ACTION_LABELS[selectedAuditLog.action] || selectedAuditLog.action}
+                  </span>
+
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">Tabla</span>
+                  <span className="font-mono text-xs">{selectedAuditLog.targetTable || '—'}</span>
+
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">ID Objetivo</span>
+                  <span className="font-mono text-xs">{selectedAuditLog.targetId ?? '—'}</span>
+
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">IP</span>
+                  <span className="font-mono text-xs">{selectedAuditLog.ipAddress || '—'}</span>
+                </div>
+
+                <div className="border-t pt-3">
+                  <p className="text-muted-foreground font-medium mb-2">Detalles</p>
+                  {parsedDetails === null ? (
+                    <p className="text-muted-foreground text-xs italic">Sin detalles adicionales.</p>
+                  ) : (
+                    <pre className="bg-secondary/50 rounded-xl p-3 text-xs overflow-auto max-h-64 whitespace-pre-wrap break-words font-mono border border-border/50">
+                      {typeof parsedDetails === 'string'
+                        ? parsedDetails
+                        : JSON.stringify(parsedDetails, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" className="rounded-xl" onClick={() => setSelectedAuditLog(null)}>Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
