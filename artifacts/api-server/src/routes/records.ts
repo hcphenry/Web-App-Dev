@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, recordsTable, usersTable, patientProfilesTable } from "@workspace/db";
-import { eq, desc, and, ilike } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte } from "drizzle-orm";
 import { CreateRecordBody, ListAllRecordsQueryParams } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 
@@ -123,6 +123,12 @@ router.get("/psicologo/patients/:id/records", requirePsicologo, async (req, res)
     return;
   }
 
+  const { from, to, emocion } = req.query as { from?: string; to?: string; emocion?: string };
+
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+  if (toDate) toDate.setHours(23, 59, 59, 999);
+
   const rows = await db
     .select({
       id: recordsTable.id,
@@ -138,7 +144,14 @@ router.get("/psicologo/patients/:id/records", requirePsicologo, async (req, res)
     })
     .from(recordsTable)
     .innerJoin(usersTable, eq(recordsTable.userId, usersTable.id))
-    .where(eq(recordsTable.userId, patientUserId))
+    .where(
+      and(
+        eq(recordsTable.userId, patientUserId),
+        fromDate && !isNaN(fromDate.getTime()) ? gte(recordsTable.createdAt, fromDate) : undefined,
+        toDate && !isNaN(toDate.getTime()) ? lte(recordsTable.createdAt, toDate) : undefined,
+        emocion?.trim() ? ilike(recordsTable.emocion, `%${emocion.trim()}%`) : undefined
+      )
+    )
     .orderBy(desc(recordsTable.createdAt));
 
   await logAudit({

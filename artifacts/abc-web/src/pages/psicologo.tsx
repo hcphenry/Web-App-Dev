@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X } from "lucide-react";
 
 interface AvailabilitySlot {
   id: number;
@@ -108,8 +108,13 @@ async function fetchPatientProfile(userId: number): Promise<PatientFullProfile> 
   return res.json();
 }
 
-async function fetchPatientRecords(userId: number): Promise<AbcRecord[]> {
-  const res = await fetch(`${BASE}/psicologo/patients/${userId}/records`);
+async function fetchPatientRecords(userId: number, filters: { from?: string; to?: string; emocion?: string }): Promise<AbcRecord[]> {
+  const params = new URLSearchParams();
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.emocion) params.set("emocion", filters.emocion);
+  const qs = params.toString();
+  const res = await fetch(`${BASE}/psicologo/patients/${userId}/records${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error("Error al cargar registros del paciente");
   return res.json();
 }
@@ -126,14 +131,18 @@ export default function PsicologoDashboard() {
   // Patient modal state
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [patientModalTab, setPatientModalTab] = useState<"perfil" | "registros">("perfil");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterEmocion, setFilterEmocion] = useState("");
+
   const { data: selectedPatientProfile, isLoading: loadingPatientProfile } = useQuery({
     queryKey: ["psicologo-patient-profile", selectedPatientId],
     queryFn: () => fetchPatientProfile(selectedPatientId!),
     enabled: selectedPatientId !== null,
   });
   const { data: patientRecords = [], isLoading: loadingPatientRecords } = useQuery({
-    queryKey: ["psicologo-patient-records", selectedPatientId],
-    queryFn: () => fetchPatientRecords(selectedPatientId!),
+    queryKey: ["psicologo-patient-records", selectedPatientId, filterFrom, filterTo, filterEmocion],
+    queryFn: () => fetchPatientRecords(selectedPatientId!, { from: filterFrom || undefined, to: filterTo || undefined, emocion: filterEmocion || undefined }),
     enabled: selectedPatientId !== null && patientModalTab === "registros",
   });
 
@@ -542,7 +551,7 @@ export default function PsicologoDashboard() {
       </Dialog>
 
       {/* MODAL: Perfil Clínico del Paciente */}
-      <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) { setSelectedPatientId(null); setPatientModalTab("perfil"); } }}>
+      <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) { setSelectedPatientId(null); setPatientModalTab("perfil"); setFilterFrom(""); setFilterTo(""); setFilterEmocion(""); } }}>
         <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-display text-xl flex items-center gap-2">
@@ -613,37 +622,73 @@ export default function PsicologoDashboard() {
               )}
 
               {patientModalTab === "registros" && (
-                <div className="max-h-[55vh] overflow-y-auto pr-1">
-                  {loadingPatientRecords ? (
-                    <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-                  ) : patientRecords.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <FileText className="w-10 h-10 mx-auto mb-2 text-primary/20" />
-                      <p className="text-sm">Este paciente no tiene registros ABC aún.</p>
+                <div className="flex flex-col gap-3">
+                  <div className="space-y-2 pb-2 border-b border-border/40">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros</p>
+                      {(filterFrom || filterTo || filterEmocion) && (
+                        <button
+                          onClick={() => { setFilterFrom(""); setFilterTo(""); setFilterEmocion(""); }}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" /> Limpiar filtros
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {patientRecords.map(record => (
-                        <div key={record.id} className="bg-secondary/20 rounded-xl p-4 border border-border/40 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(record.createdAt), "d 'de' MMMM yyyy, HH:mm", { locale: es })}
-                            </span>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${record.intensidad >= 7 ? "bg-red-100 text-red-700" : record.intensidad >= 4 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
-                              Intensidad: {record.intensidad}/10
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2">
-                            <RecordField label="Situación" value={record.situacion} />
-                            <RecordField label="Pensamientos" value={record.pensamientos} />
-                            <RecordField label="Emoción" value={record.emocion} />
-                            <RecordField label="Conducta" value={record.conducta} />
-                            {record.reflexion && <RecordField label="Reflexión" value={record.reflexion} />}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Desde</label>
+                        <Input type="date" className="rounded-lg text-sm h-8 bg-white/50" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Hasta</label>
+                        <Input type="date" className="rounded-lg text-sm h-8 bg-white/50" value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+                      </div>
                     </div>
-                  )}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por emoción (ej: ansiedad)"
+                        className="rounded-lg text-sm h-8 bg-white/50 pl-8"
+                        value={filterEmocion}
+                        onChange={e => setFilterEmocion(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[42vh] overflow-y-auto pr-1">
+                    {loadingPatientRecords ? (
+                      <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                    ) : patientRecords.length === 0 ? (
+                      <div className="text-center py-10 text-muted-foreground">
+                        <FileText className="w-10 h-10 mx-auto mb-2 text-primary/20" />
+                        <p className="text-sm">{(filterFrom || filterTo || filterEmocion) ? "No hay registros con esos filtros." : "Este paciente no tiene registros ABC aún."}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">{patientRecords.length} {patientRecords.length === 1 ? "registro" : "registros"}</p>
+                        {patientRecords.map(record => (
+                          <div key={record.id} className="bg-secondary/20 rounded-xl p-4 border border-border/40 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(record.createdAt), "d 'de' MMMM yyyy, HH:mm", { locale: es })}
+                              </span>
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${record.intensidad >= 7 ? "bg-red-100 text-red-700" : record.intensidad >= 4 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
+                                Intensidad: {record.intensidad}/10
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                              <RecordField label="Situación" value={record.situacion} />
+                              <RecordField label="Pensamientos" value={record.pensamientos} />
+                              <RecordField label="Emoción" value={record.emocion} />
+                              <RecordField label="Conducta" value={record.conducta} />
+                              {record.reflexion && <RecordField label="Reflexión" value={record.reflexion} />}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
