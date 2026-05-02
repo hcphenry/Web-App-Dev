@@ -12,6 +12,7 @@ import anamnesisRecordsRouter from "./anamnesisRecords";
 import primeraConsultaRecordsRouter from "./primeraConsultaRecords";
 import desarrolloSesionRecordsRouter from "./desarrolloSesionRecords";
 import consultaPsicologicaRecordsRouter from "./consultaPsicologicaRecords";
+import planIntervencionRecordsRouter from "./planIntervencionRecords";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use("/anamnesis", anamnesisRecordsRouter);
 router.use("/primera-consulta", primeraConsultaRecordsRouter);
 router.use("/desarrollo-sesion", desarrolloSesionRecordsRouter);
 router.use("/consulta-psicologica", consultaPsicologicaRecordsRouter);
+router.use("/plan-intervencion", planIntervencionRecordsRouter);
 
 export default router;
