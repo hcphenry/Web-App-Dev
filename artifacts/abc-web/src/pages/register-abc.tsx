@@ -80,11 +80,12 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
   const [activeConsultaPsicologicaAssignment, setActiveConsultaPsicologicaAssignment] = useState<number | null>(null);
+  const [activeDesarrolloSesionPacAssignment, setActiveDesarrolloSesionPacAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -258,6 +259,7 @@ export default function RegisterAbc() {
         const isPrimeraConsulta = a.taskKey === 'primera-consulta-ninos';
         const isDesarrolloSesion = a.taskKey === 'desarrollo-sesion';
         const isConsultaPsicologicaAdultos = a.taskKey === 'consulta-psicologica-adultos';
+        const isDesarrolloSesionPaciente = a.taskKey === 'desarrollo-sesion-paciente';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -287,11 +289,12 @@ export default function RegisterAbc() {
             else if (isPrimeraConsulta) { setActivePrimeraConsultaAssignment(a.id); setView('primera-consulta'); }
             else if (isDesarrolloSesion) { setActiveDesarrolloSesionAssignment(a.id); setView('desarrollo-sesion'); }
             else if (isConsultaPsicologicaAdultos) { setActiveConsultaPsicologicaAssignment(a.id); setView('consulta-psicologica-adultos'); }
+            else if (isDesarrolloSesionPaciente) { setActiveDesarrolloSesionPacAssignment(a.id); setView('desarrollo-sesion-paciente'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
-          // Repetibles (ABC, Desarrollo Sesión y Consulta Psicológica) no muestran el botón
-          // "Marcar completada" porque el paciente puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos)
+          // Repetibles (ABC, Desarrollo Sesión, Consulta Psicológica y Desarrollo por sesión paciente)
+          // no muestran el botón "Marcar completada" porque el paciente puede registrarlas muchas veces.
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -382,6 +385,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Consulta Psicológica</h1>
                 <p className="text-muted-foreground mt-1">Jóvenes y adultos · formulario de consulta</p>
+              </>
+            )}
+            {view === 'desarrollo-sesion-paciente' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Desarrollo por sesión</h1>
+                <p className="text-muted-foreground mt-1">Jóvenes y adultos · formato de sesión psicológica</p>
               </>
             )}
           </div>
@@ -537,6 +546,14 @@ export default function RegisterAbc() {
             assignmentId={activeConsultaPsicologicaAssignment}
             onCancel={() => { setView('dashboard'); setActiveConsultaPsicologicaAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveConsultaPsicologicaAssignment(null); }}
+          />
+        )}
+
+        {view === 'desarrollo-sesion-paciente' && (
+          <DesarrolloSesionForm
+            assignmentId={activeDesarrolloSesionPacAssignment}
+            onCancel={() => { setView('dashboard'); setActiveDesarrolloSesionPacAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveDesarrolloSesionPacAssignment(null); }}
           />
         )}
 

@@ -513,6 +513,45 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 12 (consulta psicológica records) skipped"); }
 
+    // ── PHASE 13: nueva tarea repetible "Desarrollo por sesión jóvenes y adultos"
+    // para pacientes (mismo formato del PDF que ya usa DesarrolloSesionForm).
+    // Reutiliza la tabla `desarrollo_sesion_records` (paciente_id, data jsonb).
+    try {
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('desarrollo-sesion-paciente', 'Desarrollo por sesión jóvenes y adultos',
+           'Formato de sesión psicológica para jóvenes y adultos: objetivos, resumen, observaciones, tareas, evaluación y plan de acción. Puede completarse muchas veces.',
+           'Activity', 'from-emerald-500 to-teal-600',
+           'bg-emerald-100 text-emerald-700', '/desarrollo-sesion-paciente', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'desarrollo-sesion-paciente'
+      `);
+      // Backfill: cada paciente recibe una asignación pendiente repetible.
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key = 'desarrollo-sesion-paciente'
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 13 (desarrollo sesión paciente) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
