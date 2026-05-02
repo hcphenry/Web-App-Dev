@@ -795,8 +795,8 @@ export default function PsicologoDashboard() {
 
       {/* MODAL: Perfil Clínico del Paciente */}
       <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) { setSelectedPatientId(null); setPatientModalTab("perfil"); setSesionFormOpen(false); setFilterFrom(""); setFilterTo(""); setFilterEmocion(""); } }}>
-        <DialogContent className="sm:max-w-lg rounded-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[96vw] sm:max-w-5xl max-h-[92vh] p-0 rounded-2xl overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0">
             <DialogTitle className="font-display text-xl flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" /> Perfil Clínico del Paciente
             </DialogTitle>
@@ -805,7 +805,7 @@ export default function PsicologoDashboard() {
           {loadingPatientProfile ? (
             <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : selectedPatientProfile ? (
-            <div className="mt-1">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
               <div className="flex items-center gap-3 pb-3 border-b border-border/50 mb-3">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <UserCircle className="w-7 h-7 text-primary" />
