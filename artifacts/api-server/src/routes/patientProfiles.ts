@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, usersTable, patientProfilesTable, auditLogsTable } from "@workspace/db";
-import { eq, desc, and, gte, lte, count, ilike, type SQL } from "drizzle-orm";
+import { db, usersTable, patientProfilesTable, auditLogsTable, recordsTable } from "@workspace/db";
+import { eq, desc, and, gte, lte, count, ilike, sql, type SQL } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 // ─── Validation schemas ────────────────────────────────────────────────────
@@ -422,6 +422,90 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
   });
 
   res.json(profile);
+});
+
+// ─── ADMIN: Dashboard stats ───────────────────────────────────────────────
+
+router.get("/admin/dashboard", requireAdmin, async (req, res) => {
+  const [
+    roleCounts,
+    [{ totalRecords }],
+    patientsByPsicologo,
+    patientsByEstado,
+    recentActivity,
+    recordsByMonthRaw,
+  ] = await Promise.all([
+    db.select({ role: usersTable.role, total: count() })
+      .from(usersTable)
+      .groupBy(usersTable.role),
+
+    db.select({ totalRecords: count() }).from(recordsTable),
+
+    db.select({
+      psicologa: patientProfilesTable.psicologaAsignada,
+      total: count(),
+    })
+      .from(patientProfilesTable)
+      .where(sql`psicologa_asignada IS NOT NULL AND psicologa_asignada <> ''`)
+      .groupBy(patientProfilesTable.psicologaAsignada)
+      .orderBy(desc(count())),
+
+    db.select({
+      estado: patientProfilesTable.estado,
+      total: count(),
+    })
+      .from(patientProfilesTable)
+      .groupBy(patientProfilesTable.estado),
+
+    db.select({
+      id: auditLogsTable.id,
+      actorName: auditLogsTable.actorName,
+      action: auditLogsTable.action,
+      targetTable: auditLogsTable.targetTable,
+      createdAt: auditLogsTable.createdAt,
+    })
+      .from(auditLogsTable)
+      .orderBy(desc(auditLogsTable.createdAt))
+      .limit(8),
+
+    db.execute(sql`
+      SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') AS month,
+             DATE_TRUNC('month', created_at) AS month_sort,
+             COUNT(*)::int AS count
+      FROM records
+      WHERE created_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY DATE_TRUNC('month', created_at)
+    `),
+  ]);
+
+  const byRole = Object.fromEntries(roleCounts.map(r => [r.role, Number(r.total)]));
+
+  res.json({
+    totals: {
+      patients: byRole['user'] ?? 0,
+      psychologists: byRole['psicologo'] ?? 0,
+      admins: byRole['admin'] ?? 0,
+      totalUsers: roleCounts.reduce((s, r) => s + Number(r.total), 0),
+      records: Number(totalRecords),
+    },
+    patientsByPsicologo: patientsByPsicologo.map(r => ({
+      psicologa: r.psicologa ?? '(Sin asignar)',
+      total: Number(r.total),
+    })),
+    patientsByEstado: patientsByEstado.map(r => ({
+      estado: r.estado ?? 'activo',
+      total: Number(r.total),
+    })),
+    recentActivity: recentActivity.map(r => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    recordsByMonth: (recordsByMonthRaw.rows as any[]).map(r => ({
+      month: r.month as string,
+      count: Number(r.count),
+    })),
+  });
 });
 
 // ─── ADMIN: Audit logs ────────────────────────────────────────────────────
