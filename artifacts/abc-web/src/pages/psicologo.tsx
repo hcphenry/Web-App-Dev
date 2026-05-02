@@ -199,7 +199,10 @@ export default function PsicologoDashboard() {
     const [y, mo, d] = datePart.split("-").map(Number);
     const [h, mi] = timePart.split(":").map(Number);
     const utcMs = Date.UTC(y, mo - 1, d, h + 5, mi); // Lima = UTC−5 → UTC = Lima+5h
-    return format(new Date(utcMs), "yyyy-MM-dd'T'HH:mm");
+    const dt = new Date(utcMs);
+    // Use UTC getters — format() uses browser local timezone and would undo the +5h in Lima browsers
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
   };
 
   // Account state
