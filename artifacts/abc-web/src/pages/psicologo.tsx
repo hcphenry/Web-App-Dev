@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, parseISO, isAfter } from "date-fns";
+import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, addHours, setHours, setMinutes, getHours, getMinutes, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface AvailabilitySlot {
   id: number;
@@ -150,7 +150,16 @@ export default function PsicologoDashboard() {
   const [slotModalOpen, setSlotModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<AvailabilitySlot | null>(null);
   const [deletingSlot, setDeletingSlot] = useState<AvailabilitySlot | null>(null);
-  const [slotForm, setSlotForm] = useState({ startTime: "", endTime: "", notes: "" });
+  const [slotForm, setSlotForm] = useState({ startTime: "", endTime: "", notes: "", isAvailable: true });
+
+  // Week calendar state
+  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+
+  const SCHED_START = 7;  // 7:00 AM
+  const SCHED_END = 21;   // 9:00 PM
+  const PX_PER_MIN = 2;   // 2px per minute → 120px per hour
 
   // Account state
   const [emailForm, setEmailForm] = useState({ email: "", currentPassword: "" });
@@ -207,9 +216,9 @@ export default function PsicologoDashboard() {
     onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err.message }),
   });
 
-  const openCreateSlot = () => {
+  const openCreateSlot = (prefill?: { startTime?: string; endTime?: string }) => {
     setEditingSlot(null);
-    setSlotForm({ startTime: "", endTime: "", notes: "" });
+    setSlotForm({ startTime: prefill?.startTime || "", endTime: prefill?.endTime || "", notes: "", isAvailable: true });
     setSlotModalOpen(true);
   };
 
@@ -219,6 +228,7 @@ export default function PsicologoDashboard() {
       startTime: slot.startTime.slice(0, 16),
       endTime: slot.endTime.slice(0, 16),
       notes: slot.notes || "",
+      isAvailable: slot.isAvailable,
     });
     setSlotModalOpen(true);
   };
@@ -353,45 +363,156 @@ export default function PsicologoDashboard() {
 
           {/* ── DISPONIBILIDAD ── */}
           <TabsContent value="availability">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold">Mis Horarios Disponibles</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">Registra los días y horas en que estás disponible para atender citas.</p>
+                  <h2 className="text-xl font-semibold">Mi Agenda de Disponibilidad</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Haz clic en cualquier franja horaria para registrar tu disponibilidad.</p>
                 </div>
-                <Button onClick={openCreateSlot} className="rounded-full shadow-md shadow-primary/20">
-                  <Plus className="w-4 h-4 mr-2" /> Agregar Horario
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setCurrentWeekStart(w => subWeeks(w, 1))}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm font-medium min-w-[160px] text-center">
+                    {format(currentWeekStart, "d MMM", { locale: es })} – {format(addDays(currentWeekStart, 6), "d MMM yyyy", { locale: es })}
+                  </span>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setCurrentWeekStart(w => addWeeks(w, 1))}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="rounded-full text-xs h-8 ml-1" onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+                    Hoy
+                  </Button>
+                  <Button size="sm" className="rounded-full h-8 shadow-sm" onClick={() => openCreateSlot()}>
+                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Nuevo
+                  </Button>
+                </div>
               </div>
 
-              {loadingSlots ? (
-                <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-              ) : slots.length === 0 ? (
-                <div className="glass-panel rounded-2xl p-12 text-center border border-dashed">
-                  <CalendarDays className="w-12 h-12 text-primary/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground">No tienes horarios registrados. Agrega tu primer horario disponible.</p>
-                  <Button onClick={openCreateSlot} className="mt-4 rounded-full">Agregar primer horario</Button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {upcomingSlots.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Próximos</h3>
-                      <div className="grid gap-3">
-                        {upcomingSlots.map(slot => <SlotCard key={slot.id} slot={slot} onEdit={openEditSlot} onDelete={setDeletingSlot} />)}
+              {/* Calendar grid */}
+              <div className="glass-panel rounded-2xl border overflow-hidden shadow-sm">
+                {/* Day headers */}
+                <div className="grid border-b bg-white/60 backdrop-blur-sm" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
+                  <div className="py-3" />
+                  {Array.from({ length: 7 }, (_, i) => {
+                    const day = addDays(currentWeekStart, i);
+                    const today = isToday(day);
+                    return (
+                      <div key={i} className={`py-3 text-center border-l border-border/30 ${today ? 'bg-primary/5' : ''}`}>
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
+                          {format(day, 'EEE', { locale: es })}
+                        </p>
+                        <div className={`mx-auto mt-1 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold transition-colors ${today ? 'bg-primary text-white' : 'text-foreground'}`}>
+                          {format(day, 'd')}
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+
+                {/* Scrollable time grid */}
+                <div className="overflow-y-auto" style={{ maxHeight: '520px' }}>
+                  {loadingSlots ? (
+                    <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                  ) : (
+                    <div className="relative grid" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
+                      {/* Time labels column */}
+                      <div className="relative z-10 bg-white/40">
+                        {Array.from({ length: SCHED_END - SCHED_START }, (_, i) => (
+                          <div key={i} style={{ height: `${PX_PER_MIN * 60}px` }} className="flex items-start justify-end pr-2 pt-1">
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              {String(SCHED_START + i).padStart(2, '0')}:00
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 7 day columns */}
+                      {Array.from({ length: 7 }, (_, dayIdx) => {
+                        const day = addDays(currentWeekStart, dayIdx);
+                        const today = isToday(day);
+                        const daySlots = slots.filter(s => isSameDay(parseISO(s.startTime), day));
+
+                        return (
+                          <div
+                            key={dayIdx}
+                            className={`relative border-l border-border/30 cursor-crosshair select-none ${today ? 'bg-primary/[0.02]' : ''}`}
+                            style={{ height: `${PX_PER_MIN * 60 * (SCHED_END - SCHED_START)}px` }}
+                            onClick={e => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const y = e.clientY - rect.top;
+                              const rawMin = Math.floor(y / PX_PER_MIN);
+                              const snappedMin = Math.round(rawMin / 30) * 30;
+                              const h = Math.floor(snappedMin / 60) + SCHED_START;
+                              const m = snappedMin % 60;
+                              if (h >= SCHED_END) return;
+                              const start = setMinutes(setHours(day, h), m);
+                              const end = addHours(start, 1);
+                              openCreateSlot({
+                                startTime: format(start, "yyyy-MM-dd'T'HH:mm"),
+                                endTime: format(end, "yyyy-MM-dd'T'HH:mm"),
+                              });
+                            }}
+                          >
+                            {/* Horizontal hour lines */}
+                            {Array.from({ length: SCHED_END - SCHED_START }, (_, i) => (
+                              <div key={i} className="absolute left-0 right-0 border-t border-border/20 pointer-events-none" style={{ top: `${i * PX_PER_MIN * 60}px` }} />
+                            ))}
+                            {/* Half-hour dashed lines */}
+                            {Array.from({ length: SCHED_END - SCHED_START }, (_, i) => (
+                              <div key={`h${i}`} className="absolute left-0 right-0 border-t border-border/10 border-dashed pointer-events-none" style={{ top: `${(i + 0.5) * PX_PER_MIN * 60}px` }} />
+                            ))}
+
+                            {/* Slot blocks */}
+                            {daySlots.map(slot => {
+                              const start = parseISO(slot.startTime);
+                              const end = parseISO(slot.endTime);
+                              const startMin = (getHours(start) - SCHED_START) * 60 + getMinutes(start);
+                              const endMin = (getHours(end) - SCHED_START) * 60 + getMinutes(end);
+                              const cStart = Math.max(0, startMin);
+                              const cEnd = Math.min((SCHED_END - SCHED_START) * 60, endMin);
+                              const top = cStart * PX_PER_MIN;
+                              const height = Math.max((cEnd - cStart) * PX_PER_MIN, 24);
+
+                              return (
+                                <div
+                                  key={slot.id}
+                                  className={`absolute left-0.5 right-0.5 rounded-lg px-1.5 py-1 text-xs font-medium overflow-hidden cursor-pointer transition-all hover:brightness-95 hover:shadow-md z-10 ${
+                                    slot.isAvailable
+                                      ? 'bg-teal-500 text-white border border-teal-400/50 shadow-sm'
+                                      : 'bg-slate-400 text-white border border-slate-300/50 shadow-sm'
+                                  }`}
+                                  style={{ top: `${top}px`, height: `${height}px` }}
+                                  onClick={e => { e.stopPropagation(); openEditSlot(slot); }}
+                                  title={`${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}${slot.notes ? '\n' + slot.notes : ''}`}
+                                >
+                                  <p className="truncate leading-tight">{format(start, 'HH:mm')}–{format(end, 'HH:mm')}</p>
+                                  {height >= 48 && slot.notes && (
+                                    <p className="truncate opacity-80 text-[10px] leading-tight mt-0.5">{slot.notes}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                  {pastSlots.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pasados</h3>
-                      <div className="grid gap-3 opacity-60">
-                        {pastSlots.map(slot => <SlotCard key={slot.id} slot={slot} onEdit={openEditSlot} onDelete={setDeletingSlot} past />)}
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Legend + summary */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-teal-500" />
+                  <span>Disponible</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-slate-400" />
+                  <span>No disponible</span>
+                </div>
+                <span className="ml-auto italic">Clic en horario vacío → crear · Clic en bloque → editar</span>
+              </div>
             </div>
           </TabsContent>
 
@@ -521,25 +642,61 @@ export default function PsicologoDashboard() {
       <Dialog open={slotModalOpen} onOpenChange={open => { setSlotModalOpen(open); if (!open) setEditingSlot(null); }}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">{editingSlot ? "Editar Horario" : "Agregar Horario Disponible"}</DialogTitle>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-primary" />
+              {editingSlot ? "Editar Horario" : "Nuevo Horario Disponible"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSlotSubmit} className="space-y-4 mt-2">
-            <div className="space-y-2">
-              <Label>Fecha y hora de inicio</Label>
-              <Input type="datetime-local" className="rounded-xl bg-white/50" value={slotForm.startTime}
-                onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inicio</Label>
+                <Input type="datetime-local" className="rounded-xl bg-white/50" value={slotForm.startTime}
+                  onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fin</Label>
+                <Input type="datetime-local" className="rounded-xl bg-white/50" value={slotForm.endTime}
+                  onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))} required />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Fecha y hora de fin</Label>
-              <Input type="datetime-local" className="rounded-xl bg-white/50" value={slotForm.endTime}
-                onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))} required />
+
+            {/* Availability toggle */}
+            <div className="flex items-center gap-3 p-3 rounded-xl border bg-secondary/20">
+              <button
+                type="button"
+                onClick={() => setSlotForm(f => ({ ...f, isAvailable: !f.isAvailable }))}
+                className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${slotForm.isAvailable ? 'bg-teal-500' : 'bg-slate-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${slotForm.isAvailable ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+              <div>
+                <p className="text-sm font-medium">{slotForm.isAvailable ? 'Disponible' : 'No disponible'}</p>
+                <p className="text-xs text-muted-foreground">{slotForm.isAvailable ? 'Este horario aparece libre para citas' : 'Marcado como ocupado o bloqueado'}</p>
+              </div>
+              {slotForm.isAvailable
+                ? <CheckCircle2 className="w-4 h-4 text-teal-500 ml-auto shrink-0" />
+                : <XCircle className="w-4 h-4 text-slate-400 ml-auto shrink-0" />
+              }
             </div>
+
             <div className="space-y-2">
-              <Label>Notas (opcional)</Label>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notas (opcional)</Label>
               <Textarea placeholder="Ej: Sesión de 50 minutos, consulta presencial..." className="rounded-xl bg-white/50 resize-none" rows={2}
                 value={slotForm.notes} onChange={e => setSlotForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
-            <DialogFooter className="pt-2">
+
+            <DialogFooter className="pt-2 flex-col sm:flex-row gap-2">
+              {editingSlot && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-xl text-destructive hover:text-destructive hover:bg-destructive/10 sm:mr-auto"
+                  onClick={() => { setSlotModalOpen(false); setDeletingSlot(editingSlot); }}
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" /> Eliminar
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={() => setSlotModalOpen(false)} className="rounded-xl">Cancelar</Button>
               <Button type="submit" disabled={createSlot.isPending || updateSlot.isPending} className="rounded-xl">
                 {(createSlot.isPending || updateSlot.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
