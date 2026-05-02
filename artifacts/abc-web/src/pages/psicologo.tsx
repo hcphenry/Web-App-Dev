@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText } from "lucide-react";
 
 interface AvailabilitySlot {
   id: number;
@@ -69,6 +69,19 @@ interface PatientFullProfile extends AssignedPatient {
   updatedAt: string;
 }
 
+interface AbcRecord {
+  id: number;
+  userId: number;
+  userName: string;
+  situacion: string;
+  pensamientos: string;
+  emocion: string;
+  intensidad: number;
+  conducta: string;
+  reflexion: string | null;
+  createdAt: string;
+}
+
 const BASE = "/api";
 
 async function fetchProfile(): Promise<PsychologistProfile> {
@@ -95,6 +108,12 @@ async function fetchPatientProfile(userId: number): Promise<PatientFullProfile> 
   return res.json();
 }
 
+async function fetchPatientRecords(userId: number): Promise<AbcRecord[]> {
+  const res = await fetch(`${BASE}/psicologo/patients/${userId}/records`);
+  if (!res.ok) throw new Error("Error al cargar registros del paciente");
+  return res.json();
+}
+
 export default function PsicologoDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -106,10 +125,16 @@ export default function PsicologoDashboard() {
 
   // Patient modal state
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [patientModalTab, setPatientModalTab] = useState<"perfil" | "registros">("perfil");
   const { data: selectedPatientProfile, isLoading: loadingPatientProfile } = useQuery({
     queryKey: ["psicologo-patient-profile", selectedPatientId],
     queryFn: () => fetchPatientProfile(selectedPatientId!),
     enabled: selectedPatientId !== null,
+  });
+  const { data: patientRecords = [], isLoading: loadingPatientRecords } = useQuery({
+    queryKey: ["psicologo-patient-records", selectedPatientId],
+    queryFn: () => fetchPatientRecords(selectedPatientId!),
+    enabled: selectedPatientId !== null && patientModalTab === "registros",
   });
 
   // Slot form state
@@ -495,18 +520,19 @@ export default function PsicologoDashboard() {
       </Dialog>
 
       {/* MODAL: Perfil Clínico del Paciente */}
-      <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) setSelectedPatientId(null); }}>
+      <Dialog open={selectedPatientId !== null} onOpenChange={open => { if (!open) { setSelectedPatientId(null); setPatientModalTab("perfil"); } }}>
         <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-display text-xl flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" /> Perfil Clínico del Paciente
             </DialogTitle>
           </DialogHeader>
+
           {loadingPatientProfile ? (
             <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : selectedPatientProfile ? (
-            <div className="space-y-4 mt-2 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="flex items-center gap-3 pb-3 border-b border-border/50">
+            <div className="mt-1">
+              <div className="flex items-center gap-3 pb-3 border-b border-border/50 mb-3">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <UserCircle className="w-7 h-7 text-primary" />
                 </div>
@@ -521,28 +547,81 @@ export default function PsicologoDashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <InfoField label="Estado" value={selectedPatientProfile.estado} />
-                <InfoField label="Perioricidad" value={selectedPatientProfile.perioricidad} />
-                <InfoField label="Costo de Terapia" value={selectedPatientProfile.costoTerapia ? `S/ ${selectedPatientProfile.costoTerapia}` : null} />
-                <InfoField label="Fecha de Alta" value={selectedPatientProfile.fechaAlta} />
-                <InfoField label="Celular" value={selectedPatientProfile.nroCelular} />
-                <InfoField label="Fecha de Nacimiento" value={selectedPatientProfile.fechaNacimiento} />
-                <InfoField label="Sexo" value={selectedPatientProfile.sexo} />
-                <InfoField label="Tipo de Documento" value={selectedPatientProfile.tipoDocumento} />
-                <InfoField label="Número de Documento" value={selectedPatientProfile.numeroDocumento} />
-                <InfoField label="País" value={selectedPatientProfile.pais} />
+              <div className="flex gap-1 mb-4 bg-secondary/30 rounded-xl p-1">
+                <button
+                  onClick={() => setPatientModalTab("perfil")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-lg transition-all ${patientModalTab === "perfil" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <UserCircle className="w-4 h-4" /> Perfil
+                </button>
+                <button
+                  onClick={() => setPatientModalTab("registros")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-lg transition-all ${patientModalTab === "registros" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <FileText className="w-4 h-4" /> Registros ABC
+                </button>
               </div>
 
-              {(selectedPatientProfile.direccion || selectedPatientProfile.distrito || selectedPatientProfile.ciudad || selectedPatientProfile.departamento) && (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dirección</p>
+              {patientModalTab === "perfil" && (
+                <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
                   <div className="grid grid-cols-2 gap-3">
-                    <InfoField label="Dirección" value={selectedPatientProfile.direccion} />
-                    <InfoField label="Distrito" value={selectedPatientProfile.distrito} />
-                    <InfoField label="Ciudad" value={selectedPatientProfile.ciudad} />
-                    <InfoField label="Departamento" value={selectedPatientProfile.departamento} />
+                    <InfoField label="Estado" value={selectedPatientProfile.estado} />
+                    <InfoField label="Perioricidad" value={selectedPatientProfile.perioricidad} />
+                    <InfoField label="Costo de Terapia" value={selectedPatientProfile.costoTerapia ? `S/ ${selectedPatientProfile.costoTerapia}` : null} />
+                    <InfoField label="Fecha de Alta" value={selectedPatientProfile.fechaAlta} />
+                    <InfoField label="Celular" value={selectedPatientProfile.nroCelular} />
+                    <InfoField label="Fecha de Nacimiento" value={selectedPatientProfile.fechaNacimiento} />
+                    <InfoField label="Sexo" value={selectedPatientProfile.sexo} />
+                    <InfoField label="Tipo de Documento" value={selectedPatientProfile.tipoDocumento} />
+                    <InfoField label="Número de Documento" value={selectedPatientProfile.numeroDocumento} />
+                    <InfoField label="País" value={selectedPatientProfile.pais} />
                   </div>
+                  {(selectedPatientProfile.direccion || selectedPatientProfile.distrito || selectedPatientProfile.ciudad || selectedPatientProfile.departamento) && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dirección</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <InfoField label="Dirección" value={selectedPatientProfile.direccion} />
+                        <InfoField label="Distrito" value={selectedPatientProfile.distrito} />
+                        <InfoField label="Ciudad" value={selectedPatientProfile.ciudad} />
+                        <InfoField label="Departamento" value={selectedPatientProfile.departamento} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {patientModalTab === "registros" && (
+                <div className="max-h-[55vh] overflow-y-auto pr-1">
+                  {loadingPatientRecords ? (
+                    <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                  ) : patientRecords.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <FileText className="w-10 h-10 mx-auto mb-2 text-primary/20" />
+                      <p className="text-sm">Este paciente no tiene registros ABC aún.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {patientRecords.map(record => (
+                        <div key={record.id} className="bg-secondary/20 rounded-xl p-4 border border-border/40 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(record.createdAt), "d 'de' MMMM yyyy, HH:mm", { locale: es })}
+                            </span>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${record.intensidad >= 7 ? "bg-red-100 text-red-700" : record.intensidad >= 4 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
+                              Intensidad: {record.intensidad}/10
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                            <RecordField label="Situación" value={record.situacion} />
+                            <RecordField label="Pensamientos" value={record.pensamientos} />
+                            <RecordField label="Emoción" value={record.emocion} />
+                            <RecordField label="Conducta" value={record.conducta} />
+                            {record.reflexion && <RecordField label="Reflexión" value={record.reflexion} />}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -550,7 +629,7 @@ export default function PsicologoDashboard() {
             <p className="text-sm text-muted-foreground py-6 text-center">No se pudo cargar el perfil.</p>
           )}
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setSelectedPatientId(null)} className="rounded-xl w-full">Cerrar</Button>
+            <Button variant="outline" onClick={() => { setSelectedPatientId(null); setPatientModalTab("perfil"); }} className="rounded-xl w-full">Cerrar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -580,6 +659,15 @@ function InfoField({ label, value }: { label: string; value: string | null | und
       <p className="text-sm font-medium text-foreground bg-secondary/30 px-3 py-2 rounded-lg">
         {value || <span className="text-muted-foreground italic">No registrado</span>}
       </p>
+    </div>
+  );
+}
+
+function RecordField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm text-foreground leading-relaxed">{value}</p>
     </div>
   );
 }
