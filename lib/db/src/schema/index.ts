@@ -7,3 +7,4 @@ export * from "./auditLogs";
 export * from "./accounting";
 export * from "./transactions";
 export * from "./therapeuticTasks";
+export * from "./anamnesisRecords";

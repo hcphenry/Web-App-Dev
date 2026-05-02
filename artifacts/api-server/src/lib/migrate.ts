@@ -284,10 +284,35 @@ export async function runMigrations() {
           ('rueda-vida', 'La Rueda de la Vida',
            'Evalúa el equilibrio en las distintas áreas de tu vida personal y profesional.',
            'Circle', 'from-slate-300 to-slate-400',
-           'bg-slate-100 text-slate-500', NULL, TRUE, FALSE)
+           'bg-slate-100 text-slate-500', NULL, TRUE, FALSE),
+          ('anamnesis-menor', 'Anamnesis menor 18',
+           'Historia clínica completa para pacientes menores de 18 años: datos generales, embarazo, desarrollo motor, lenguaje, salud, escolaridad y relaciones familiares.',
+           'FileText', 'from-amber-500 to-orange-600',
+           'bg-amber-100 text-amber-700', '/anamnesis-menor', TRUE, TRUE)
         ON CONFLICT (key) DO NOTHING
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 8 (therapeutic tasks) skipped"); }
+
+    // ── PHASE 9: anamnesis records (form responses for "Anamnesis menor 18") ──
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS anamnesis_records (
+          id              SERIAL PRIMARY KEY,
+          paciente_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id   INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          nombre_nino     TEXT NOT NULL DEFAULT '',
+          edad            TEXT,
+          sexo            TEXT,
+          motivo_consulta TEXT,
+          entrevistador   TEXT,
+          data            JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS anamnesis_records_paciente_idx ON anamnesis_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS anamnesis_records_assignment_idx ON anamnesis_records (assignment_id)`);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 9 (anamnesis records) skipped"); }
 
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
