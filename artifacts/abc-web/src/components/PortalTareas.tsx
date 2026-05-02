@@ -243,6 +243,26 @@ export default function PortalTareas() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // ─── Catálogo: cambiar destinatario (paciente / psicólogo) ──────────────
+  const setTargetRoleMut = useMutation({
+    mutationFn: async ({ id, targetRole }: { id: number; targetRole: "paciente" | "psicologo" }) => {
+      const r = await fetch(`/api/tareas/catalog/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetRole }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Error");
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["tareas"] });
+      toast({
+        title: "Destinatario actualizado",
+        description: vars.targetRole === "psicologo" ? "Ahora es una tarea para psicólogos." : "Ahora es una tarea para pacientes.",
+      });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   // ─── Render helpers ─────────────────────────────────────────────────────
   const renderStatusChip = (s: Status) => {
     const cfg = statusConfig[s];
@@ -581,11 +601,29 @@ export default function PortalTareas() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Button size="sm" variant="outline" className="h-7 text-xs rounded-full"
-                          onClick={() => toggleAvailMut.mutate({ id: t.id, isAvailable: !t.isAvailable })}>
-                          {t.isAvailable ? "Marcar próximamente" : "Marcar disponible"}
-                        </Button>
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Destinatario</Label>
+                          <Select
+                            value={t.targetRole}
+                            onValueChange={(v) => setTargetRoleMut.mutate({ id: t.id, targetRole: v as "paciente" | "psicologo" })}
+                            disabled={setTargetRoleMut.isPending}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-44">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="paciente">Para pacientes</SelectItem>
+                              <SelectItem value="psicologo">Para psicólogos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="h-7 text-xs rounded-full"
+                            onClick={() => toggleAvailMut.mutate({ id: t.id, isAvailable: !t.isAvailable })}>
+                            {t.isAvailable ? "Marcar próximamente" : "Marcar disponible"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
