@@ -670,7 +670,7 @@ export default function PortalContable() {
               <Label>Paciente</Label>
               <Select value={tarifaForm.pacienteId} onValueChange={v => setTarifaForm(f => ({ ...f, pacienteId: v }))}>
                 <SelectTrigger className="rounded-lg"><SelectValue placeholder="Seleccionar paciente" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72">
                   {pacientes.map(p => (
                     <SelectItem key={p.id} value={String(p.id)}>{p.name} — {p.email}</SelectItem>
                   ))}
@@ -720,7 +720,7 @@ export default function PortalContable() {
                 <Label>Paciente</Label>
                 <Select value={sesionForm.pacienteId} onValueChange={v => setSesionForm(f => ({ ...f, pacienteId: v }))}>
                   <SelectTrigger className="rounded-lg"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {pacientes.map(p => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
@@ -731,7 +731,7 @@ export default function PortalContable() {
                 <Label>Psicólogo</Label>
                 <Select value={sesionForm.psicologoId} onValueChange={v => setSesionForm(f => ({ ...f, psicologoId: v }))}>
                   <SelectTrigger className="rounded-lg"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {psicologos.map(p => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
