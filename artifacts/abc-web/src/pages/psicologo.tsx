@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, addHours, setHours, setMinutes } from "date-fns";
+import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, addHours, setHours, setMinutes, getHours, getMinutes, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,9 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import type { TooltipProps } from "recharts";
-import type { ValueType, NameType } from "recharts/types/component/DefaultTooltipContent";
 
 interface AvailabilitySlot {
   id: number;
@@ -155,76 +152,14 @@ export default function PsicologoDashboard() {
   const [deletingSlot, setDeletingSlot] = useState<AvailabilitySlot | null>(null);
   const [slotForm, setSlotForm] = useState({ startTime: "", endTime: "", notes: "", isAvailable: true });
 
-  // ── Lima/GMT-5 helpers — pure UTC arithmetic, zero external deps ─────────
-  // Lima is always UTC-5 with no DST. Strategy: subtract 5 h from the UTC
-  // timestamp to get a "shifted" Date, then read its *UTC* getters (never
-  // local getters, which depend on the browser timezone).
-  const LIMA_H = 5; // hours behind UTC
-
-  /** Noon-UTC Date representing Lima's current calendar date.
-   *  Use getUTC* methods on the result; never getHours/getDate. */
-  const limaNoonToday = (): Date => {
-    const shifted = new Date(Date.now() - LIMA_H * 3_600_000);
-    return new Date(Date.UTC(
-      shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 12, 0, 0,
-    ));
-  };
-
-  /** "HH:mm" string for a UTC ISO string expressed in Lima timezone.
-   *  Works in any browser: reads getUTCHours() on the shifted timestamp. */
-  const limaHHmm = (isoUtc: string): string => {
-    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
-  };
-
-  /** "YYYY-MM-DDTHH:mm" for a UTC ISO string in Lima timezone (for datetime-local inputs). */
-  const limaInputValue = (isoUtc: string): string => {
-    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
-  };
-
-  /** True if the given noon-UTC calendar day matches Lima's current date. */
-  const isTodayGMT5 = (day: Date): boolean => {
-    const shifted = new Date(Date.now() - LIMA_H * 3_600_000);
-    return day.getUTCFullYear() === shifted.getUTCFullYear()
-      && day.getUTCMonth()    === shifted.getUTCMonth()
-      && day.getUTCDate()     === shifted.getUTCDate();
-  };
-
-  /** True if a UTC ISO slot falls on this calendar day (Lima date). */
-  const isSlotOnDay = (isoUtc: string, day: Date): boolean => {
-    const shifted = new Date(parseISO(isoUtc).getTime() - LIMA_H * 3_600_000);
-    return day.getUTCFullYear() === shifted.getUTCFullYear()
-      && day.getUTCMonth()    === shifted.getUTCMonth()
-      && day.getUTCDate()     === shifted.getUTCDate();
-  };
-
-  // Week calendar state — anchored to Lima's "today" via pure UTC arithmetic
+  // Week calendar state
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
-    startOfWeek(limaNoonToday(), { weekStartsOn: 1 })
+    startOfWeek(new Date(), { weekStartsOn: 1 })
   );
 
   const SCHED_START = 7;  // 7:00 AM
   const SCHED_END = 21;   // 9:00 PM
   const PX_PER_MIN = 2;   // 2px per minute → 120px per hour
-
-  /**
-   * Form shows times in Lima/GMT-5. Convert to UTC before sending to the API.
-   * Input:  "YYYY-MM-DDTHH:mm"  (Lima local time, exactly as user typed)
-   * Output: "YYYY-MM-DDTHH:mm"  (UTC — Lima + 5 h)
-   */
-  const gmt5FormToUtc = (localDT: string): string => {
-    const [datePart, timePart] = localDT.split("T");
-    const [y, mo, d] = datePart.split("-").map(Number);
-    const [h, mi] = timePart.split(":").map(Number);
-    const utcMs = Date.UTC(y, mo - 1, d, h + 5, mi); // Lima = UTC−5 → UTC = Lima+5h
-    const dt = new Date(utcMs);
-    // Use UTC getters — format() uses browser local timezone and would undo the +5h in Lima browsers
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
-  };
 
   // Account state
   const [emailForm, setEmailForm] = useState({ email: "", currentPassword: "" });
@@ -289,10 +224,9 @@ export default function PsicologoDashboard() {
 
   const openEditSlot = (slot: AvailabilitySlot) => {
     setEditingSlot(slot);
-    // Convert stored UTC timestamps → Lima time for the datetime-local form inputs
     setSlotForm({
-      startTime: limaInputValue(slot.startTime),
-      endTime:   limaInputValue(slot.endTime),
+      startTime: slot.startTime.slice(0, 16),
+      endTime: slot.endTime.slice(0, 16),
       notes: slot.notes || "",
       isAvailable: slot.isAvailable,
     });
@@ -301,17 +235,10 @@ export default function PsicologoDashboard() {
 
   const handleSlotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Form values are in GMT-5 — convert to UTC before sending to the API
-    const apiData = {
-      startTime:   gmt5FormToUtc(slotForm.startTime),
-      endTime:     gmt5FormToUtc(slotForm.endTime),
-      notes:       slotForm.notes,
-      isAvailable: slotForm.isAvailable,
-    };
     if (editingSlot) {
-      updateSlot.mutate({ id: editingSlot.id, data: apiData });
+      updateSlot.mutate({ id: editingSlot.id, data: slotForm });
     } else {
-      createSlot.mutate(apiData);
+      createSlot.mutate(slotForm);
     }
   };
 
@@ -453,7 +380,7 @@ export default function PsicologoDashboard() {
                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setCurrentWeekStart(w => addWeeks(w, 1))}>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="sm" className="rounded-full text-xs h-8 ml-1" onClick={() => setCurrentWeekStart(startOfWeek(limaNoonToday(), { weekStartsOn: 1 }))}>
+                  <Button variant="outline" size="sm" className="rounded-full text-xs h-8 ml-1" onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
                     Hoy
                   </Button>
                   <Button size="sm" className="rounded-full h-8 shadow-sm" onClick={() => openCreateSlot()}>
@@ -469,7 +396,7 @@ export default function PsicologoDashboard() {
                   <div className="py-3" />
                   {Array.from({ length: 7 }, (_, i) => {
                     const day = addDays(currentWeekStart, i);
-                    const today = isTodayGMT5(day);
+                    const today = isToday(day);
                     return (
                       <div key={i} className={`py-3 text-center border-l border-border/30 ${today ? 'bg-primary/5' : ''}`}>
                         <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
@@ -503,9 +430,8 @@ export default function PsicologoDashboard() {
                       {/* 7 day columns */}
                       {Array.from({ length: 7 }, (_, dayIdx) => {
                         const day = addDays(currentWeekStart, dayIdx);
-                        const today = isTodayGMT5(day);
-                        // Filter slots whose Lima-timezone date matches this column
-                        const daySlots = slots.filter(s => isSlotOnDay(s.startTime, day));
+                        const today = isToday(day);
+                        const daySlots = slots.filter(s => isSameDay(parseISO(s.startTime), day));
 
                         return (
                           <div
@@ -520,14 +446,12 @@ export default function PsicologoDashboard() {
                               const h = Math.floor(snappedMin / 60) + SCHED_START;
                               const m = snappedMin % 60;
                               if (h >= SCHED_END) return;
-                              // Build Lima datetime string without browser timezone.
-                              // day is a noon-UTC Date whose getUTC* give the Lima date.
-                              const padN = (n: number) => String(n).padStart(2, '0');
-                              const limaDate = `${day.getUTCFullYear()}-${padN(day.getUTCMonth()+1)}-${padN(day.getUTCDate())}`;
-                              const startTime = `${limaDate}T${padN(h)}:${padN(m)}`;
-                              const endH = h + 1 >= SCHED_END ? SCHED_END - 1 : h + 1;
-                              const endTime = `${limaDate}T${padN(endH)}:${padN(m)}`;
-                              openCreateSlot({ startTime, endTime });
+                              const start = setMinutes(setHours(day, h), m);
+                              const end = addHours(start, 1);
+                              openCreateSlot({
+                                startTime: format(start, "yyyy-MM-dd'T'HH:mm"),
+                                endTime: format(end, "yyyy-MM-dd'T'HH:mm"),
+                              });
                             }}
                           >
                             {/* Horizontal hour lines */}
@@ -539,18 +463,15 @@ export default function PsicologoDashboard() {
                               <div key={`h${i}`} className="absolute left-0 right-0 border-t border-border/10 border-dashed pointer-events-none" style={{ top: `${(i + 0.5) * PX_PER_MIN * 60}px` }} />
                             ))}
 
-                            {/* Slot blocks — times rendered in Lima/GMT-5 via formatInTimeZone */}
+                            {/* Slot blocks */}
                             {daySlots.map(slot => {
-                              // limaHHmm uses formatInTimeZone → timezone-safe regardless of browser
-                              const startHHmm = limaHHmm(slot.startTime);
-                              const endHHmm   = limaHHmm(slot.endTime);
-                              const [sH, sM]  = startHHmm.split(':').map(Number);
-                              const [eH, eM]  = endHHmm.split(':').map(Number);
-                              const startMin  = (sH - SCHED_START) * 60 + sM;
-                              const endMin    = (eH - SCHED_START) * 60 + eM;
+                              const start = parseISO(slot.startTime);
+                              const end = parseISO(slot.endTime);
+                              const startMin = (getHours(start) - SCHED_START) * 60 + getMinutes(start);
+                              const endMin = (getHours(end) - SCHED_START) * 60 + getMinutes(end);
                               const cStart = Math.max(0, startMin);
-                              const cEnd   = Math.min((SCHED_END - SCHED_START) * 60, endMin);
-                              const top    = cStart * PX_PER_MIN;
+                              const cEnd = Math.min((SCHED_END - SCHED_START) * 60, endMin);
+                              const top = cStart * PX_PER_MIN;
                               const height = Math.max((cEnd - cStart) * PX_PER_MIN, 24);
 
                               return (
@@ -563,9 +484,9 @@ export default function PsicologoDashboard() {
                                   }`}
                                   style={{ top: `${top}px`, height: `${height}px` }}
                                   onClick={e => { e.stopPropagation(); openEditSlot(slot); }}
-                                  title={`${startHHmm} – ${endHHmm} (Lima GMT-5)${slot.notes ? '\n' + slot.notes : ''}`}
+                                  title={`${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}${slot.notes ? '\n' + slot.notes : ''}`}
                                 >
-                                  <p className="truncate leading-tight">{startHHmm}–{endHHmm}</p>
+                                  <p className="truncate leading-tight">{format(start, 'HH:mm')}–{format(end, 'HH:mm')}</p>
                                   {height >= 48 && slot.notes && (
                                     <p className="truncate opacity-80 text-[10px] leading-tight mt-0.5">{slot.notes}</p>
                                   )}
@@ -892,11 +813,6 @@ export default function PsicologoDashboard() {
                       />
                     </div>
                   </div>
-
-                  {!loadingPatientRecords && patientRecords.length > 0 && (
-                    <IntensityChart records={patientRecords} />
-                  )}
-
                   <div className="max-h-[42vh] overflow-y-auto pr-1">
                     {loadingPatientRecords ? (
                       <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -980,68 +896,10 @@ function RecordField({ label, value }: { label: string; value: string }) {
   );
 }
 
-interface IntensityChartPoint {
-  date: string;
-  fullDate: string;
-  intensidad: number;
-  emocion: string;
-}
-
-function IntensityTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
-  if (!active || !payload || payload.length === 0) return null;
-  const point = payload[0].payload as IntensityChartPoint;
-  return (
-    <div style={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "6px 10px" }}>
-      <p className="font-semibold mb-0.5">{point.fullDate}</p>
-      <p>{point.intensidad}/10 — {point.emocion}</p>
-    </div>
-  );
-}
-
-function IntensityChart({ records }: { records: AbcRecord[] }) {
-  const data: IntensityChartPoint[] = [...records]
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .map(r => ({
-      date: format(new Date(r.createdAt), "dd/MM", { locale: es }),
-      fullDate: format(new Date(r.createdAt), "d MMM yyyy", { locale: es }),
-      intensidad: r.intensidad,
-      emocion: r.emocion,
-    }));
-
-  return (
-    <div className="bg-secondary/10 border border-border/40 rounded-xl p-3">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Evolución de Intensidad Emocional</p>
-      <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-          <YAxis domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-          <ReferenceLine y={7} stroke="hsl(var(--destructive))" strokeDasharray="4 4" strokeOpacity={0.5} />
-          <Tooltip content={<IntensityTooltip />} />
-          <Line
-            type="monotone"
-            dataKey="intensidad"
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "hsl(var(--primary))", strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-      <p className="text-[10px] text-muted-foreground text-right mt-1">La línea roja punteada indica intensidad alta (≥7)</p>
-    </div>
-  );
-}
-
 function SlotCard({ slot, onEdit, onDelete, past }: { slot: AvailabilitySlot; onEdit: (s: AvailabilitySlot) => void; onDelete: (s: AvailabilitySlot) => void; past?: boolean }) {
-  const LIMA_H = 5;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const shiftedStart = new Date(parseISO(slot.startTime).getTime() - LIMA_H * 3_600_000);
-  const shiftedEnd   = new Date(parseISO(slot.endTime).getTime()   - LIMA_H * 3_600_000);
-  const durationMin  = Math.round((parseISO(slot.endTime).getTime() - parseISO(slot.startTime).getTime()) / 60000);
-  const startHHmm = `${pad(shiftedStart.getUTCHours())}:${pad(shiftedStart.getUTCMinutes())}`;
-  const endHHmm   = `${pad(shiftedEnd.getUTCHours())}:${pad(shiftedEnd.getUTCMinutes())}`;
-  const dayLabel  = `${shiftedStart.getUTCFullYear()}-${pad(shiftedStart.getUTCMonth()+1)}-${pad(shiftedStart.getUTCDate())}`;
+  const start = parseISO(slot.startTime);
+  const end = parseISO(slot.endTime);
+  const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
 
   return (
     <div className="glass-panel rounded-xl p-4 border flex flex-wrap gap-3 items-start justify-between hover:shadow-md transition-shadow">
@@ -1051,10 +909,10 @@ function SlotCard({ slot, onEdit, onDelete, past }: { slot: AvailabilitySlot; on
         </div>
         <div>
           <p className="font-semibold text-sm text-foreground">
-            {format(new Date(dayLabel + 'T12:00:00'), "EEEE d 'de' MMMM yyyy", { locale: es })}
+            {format(start, "EEEE d 'de' MMMM yyyy", { locale: es })}
           </p>
           <p className="text-sm text-muted-foreground">
-            {startHHmm} — {endHHmm} <span className="ml-1 text-xs">({durationMin} min)</span>
+            {format(start, "HH:mm")} — {format(end, "HH:mm")} <span className="ml-1 text-xs">({durationMin} min)</span>
           </p>
           {slot.notes && <p className="text-xs text-muted-foreground mt-1 italic">"{slot.notes}"</p>}
         </div>
