@@ -47,6 +47,12 @@ function requirePaciente(req: any, res: any, next: any) {
   next();
 }
 
+function requirePsicologo(req: any, res: any, next: any) {
+  if (!req.session?.userId) { res.status(401).json({ error: "No autenticado" }); return; }
+  if (req.session.userRole !== "psicologo") { res.status(403).json({ error: "Solo psicólogos" }); return; }
+  next();
+}
+
 function getIp(req: any): string | null {
   return req.ip || req.socket?.remoteAddress || null;
 }
@@ -75,7 +81,7 @@ router.get("/catalog", requireAdminOrPsi, async (_req, res) => {
 
 // POST /api/tareas/catalog — admin: create a task definition
 router.post("/catalog", requireAdmin, async (req: any, res) => {
-  const { key, name, description, icon, color, badgeColor, routePath, isActive, isAvailable } = req.body ?? {};
+  const { key, name, description, icon, color, badgeColor, routePath, isActive, isAvailable, targetRole } = req.body ?? {};
   const k = typeof key === "string" ? key.trim().toLowerCase() : "";
   const n = typeof name === "string" ? name.trim() : "";
   if (!k || !/^[a-z0-9-]+$/.test(k)) { res.status(400).json({ error: "key inválida (a-z, 0-9, '-')" }); return; }
@@ -89,6 +95,7 @@ router.post("/catalog", requireAdmin, async (req: any, res) => {
       color: typeof color === "string" && color ? color : "from-teal-500 to-teal-600",
       badgeColor: typeof badgeColor === "string" && badgeColor ? badgeColor : "bg-teal-100 text-teal-700",
       routePath: typeof routePath === "string" ? routePath : null,
+      targetRole: targetRole === "psicologo" ? "psicologo" : "paciente",
       isActive: isActive !== false,
       isAvailable: isAvailable !== false,
     }).returning();
@@ -118,6 +125,7 @@ router.patch("/catalog/:id", requireAdmin, async (req: any, res) => {
   if (typeof b.color === "string" && b.color) patch.color = b.color;
   if (typeof b.badgeColor === "string" && b.badgeColor) patch.badgeColor = b.badgeColor;
   if (b.routePath === null || typeof b.routePath === "string") patch.routePath = b.routePath;
+  if (b.targetRole === "paciente" || b.targetRole === "psicologo") patch.targetRole = b.targetRole;
   if (typeof b.isActive === "boolean") patch.isActive = b.isActive;
   if (typeof b.isAvailable === "boolean") patch.isAvailable = b.isAvailable;
   const [row] = await db.update(therapeuticTasksTable).set(patch as any)
@@ -192,6 +200,7 @@ router.get("/assignments", requireAdminOrPsi, async (req: any, res) => {
     taskName: therapeuticTasksTable.name,
     taskIcon: therapeuticTasksTable.icon,
     taskColor: therapeuticTasksTable.color,
+    targetRole: therapeuticTasksTable.targetRole,
     pacienteId: taskAssignmentsTable.pacienteId,
     pacienteName: usersTable.name,
     pacienteEmail: usersTable.email,
@@ -243,8 +252,18 @@ router.post("/assignments", requireAdminOrPsi, async (req: any, res) => {
   if (!task) { res.status(404).json({ error: "Tarea no encontrada" }); return; }
   if (!task.isActive) { res.status(400).json({ error: "La tarea no está activa" }); return; }
 
-  const [paciente] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
-  if (!paciente || paciente.role !== "user") { res.status(400).json({ error: "Paciente inválido" }); return; }
+  // The assignee must match the task's target_role.
+  // (We reuse the paciente_id column as the generic assignee_id for backwards-compat.)
+  const expectedRole = task.targetRole === "psicologo" ? "psicologo" : "user";
+  const [assignee] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+  if (!assignee || assignee.role !== expectedRole) {
+    res.status(400).json({
+      error: task.targetRole === "psicologo"
+        ? "Esta tarea es para psicólogos: el asignado debe ser un psicólogo."
+        : "Esta tarea es para pacientes: el asignado debe ser un paciente.",
+    });
+    return;
+  }
 
   let psiId: number | null = null;
   if (psicologoId !== undefined && psicologoId !== null && psicologoId !== "") {
@@ -371,6 +390,102 @@ router.delete("/assignments/:id", requireAdmin, async (req: any, res) => {
     action: "DELETE_TASK_ASSIGNMENT", targetTable: "task_assignments", targetId: id,
     ipAddress: getIp(req), details: { pacienteId: result[0].pacienteId, taskId: result[0].taskId },
   });
+  res.json({ ok: true });
+});
+
+// ─── PSICÓLOGO-FACING (own assignments) ───────────────────────────────────
+
+// GET /api/tareas/mine-psi — psicólogo sees assignments where they are the assignee
+router.get("/mine-psi", requirePsicologo, async (req: any, res) => {
+  const rows = await db.select({
+    id: taskAssignmentsTable.id,
+    taskId: taskAssignmentsTable.taskId,
+    taskKey: therapeuticTasksTable.key,
+    taskName: therapeuticTasksTable.name,
+    taskDescription: therapeuticTasksTable.description,
+    taskIcon: therapeuticTasksTable.icon,
+    taskColor: therapeuticTasksTable.color,
+    taskBadgeColor: therapeuticTasksTable.badgeColor,
+    taskRoutePath: therapeuticTasksTable.routePath,
+    taskIsAvailable: therapeuticTasksTable.isAvailable,
+    status: taskAssignmentsTable.status,
+    dueDate: taskAssignmentsTable.dueDate,
+    assignedAt: taskAssignmentsTable.assignedAt,
+    startedAt: taskAssignmentsTable.startedAt,
+    completedAt: taskAssignmentsTable.completedAt,
+    notes: taskAssignmentsTable.notes,
+  })
+    .from(taskAssignmentsTable)
+    .innerJoin(therapeuticTasksTable, eq(therapeuticTasksTable.id, taskAssignmentsTable.taskId))
+    .where(and(
+      eq(taskAssignmentsTable.pacienteId, req.session.userId),
+      eq(therapeuticTasksTable.targetRole, "psicologo"),
+      eq(therapeuticTasksTable.isActive, true),
+    ))
+    .orderBy(desc(taskAssignmentsTable.assignedAt));
+
+  res.json(rows.map(r => ({
+    ...r,
+    dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+    assignedAt: r.assignedAt.toISOString(),
+    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+    completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+  })));
+});
+
+// POST /api/tareas/mine-psi/:id/start — psicólogo marks own assignment as started
+router.post("/mine-psi/:id/start", requirePsicologo, async (req: any, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const [row] = await db.update(taskAssignmentsTable).set({
+    status: "en_progreso",
+    startedAt: sql`COALESCE(${taskAssignmentsTable.startedAt}, NOW())`,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(taskAssignmentsTable.id, id),
+    eq(taskAssignmentsTable.pacienteId, req.session.userId),
+    eq(taskAssignmentsTable.status, "pendiente"),
+  )).returning();
+  if (!row) {
+    const [exists] = await db.select({ id: taskAssignmentsTable.id })
+      .from(taskAssignmentsTable)
+      .where(and(
+        eq(taskAssignmentsTable.id, id),
+        eq(taskAssignmentsTable.pacienteId, req.session.userId),
+      )).limit(1);
+    if (!exists) { res.status(404).json({ error: "No encontrado" }); return; }
+    res.json({ ok: true, noop: true });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+// POST /api/tareas/mine-psi/:id/complete — psicólogo marks own assignment as completed
+router.post("/mine-psi/:id/complete", requirePsicologo, async (req: any, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const [row] = await db.update(taskAssignmentsTable).set({
+    status: "completada",
+    completedAt: new Date(),
+    startedAt: sql`COALESCE(${taskAssignmentsTable.startedAt}, NOW())`,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(taskAssignmentsTable.id, id),
+    eq(taskAssignmentsTable.pacienteId, req.session.userId),
+    sql`${taskAssignmentsTable.status} IN ('pendiente','en_progreso')`,
+  )).returning();
+  if (!row) {
+    const [exists] = await db.select({ id: taskAssignmentsTable.id, status: taskAssignmentsTable.status })
+      .from(taskAssignmentsTable)
+      .where(and(
+        eq(taskAssignmentsTable.id, id),
+        eq(taskAssignmentsTable.pacienteId, req.session.userId),
+      )).limit(1);
+    if (!exists) { res.status(404).json({ error: "No encontrado" }); return; }
+    if (exists.status === "completada") { res.json({ ok: true, noop: true }); return; }
+    res.status(409).json({ error: "La tarea está cancelada" });
+    return;
+  }
   res.json({ ok: true });
 });
 

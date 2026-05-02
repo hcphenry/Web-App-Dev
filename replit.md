@@ -67,9 +67,10 @@ artifacts-monorepo/
 - Password suggestion tool
 
 ### Psychologist View
-- Dedicated portal at `/psicologo`
+- Dedicated portal at `/psicologo` (5 tabs)
 - **Mi Perfil**: View professional profile info
 - **Disponibilidad**: Manage availability slots (create, edit, delete time slots)
+- **Mis Tareas**: Therapeutic tasks assigned to the psychologist (`target_role='psicologo'`). Cards show task, status chip, notes, dates, and Iniciar / Marcar completada buttons.
 - **Mi Cuenta**: Change email/password
 
 ### Patient View
@@ -87,6 +88,8 @@ artifacts-monorepo/
 - **audit_logs**: id, actor_id, actor_name, action, target_table, target_id, ip_address, details (JSON text), created_at
 - **reclamaciones**: id, correlativo, fecha, tipo_reclamo, tipo_item, nombres, dni, domicilio, telefono, email, es_menor, rep_nombres, rep_dni, rep_vinculo, monto, descripcion_bien, detalle, pedido, email_enviado, creado_en
 - **transactions**: id, fecha (timestamptz, Lima 00:00 stored as 05:00Z), descripcion, monto numeric(14,2), moneda (PEN default), numero_operacion, banco, cuenta_bancaria, usuario_id (FK→users, nullable), usuario_texto (free-text fallback), hash_unico (UNIQUE), uploaded_by (FK→users), created_at, updated_at + indexes on banco, fecha, usuario_id, hash_unico
+- **therapeutic_tasks**: id, key (unique), name, description, icon, color, badge_color, route_path, is_available, sort_order, **target_role** ('paciente' | 'psicologo', default 'paciente', CHECK constraint) — controls which portal sees the task and which user role can be assigned. Seed includes `notas-sesion-psi` (target_role='psicologo').
+- **task_assignments**: id, task_id (FK→therapeutic_tasks), paciente_id (FK→users — used as generic assignee_id; holds a paciente OR psicólogo user_id depending on `task.target_role`), assigned_by, status ('pendiente'|'en_progreso'|'completada'|'cancelada'), due_date, started_at, completed_at, notes. Backend POST validates that the assignee's role matches the task's `target_role`.
 
 ## Default Admin Credentials
 
@@ -145,6 +148,10 @@ All routes under `/api`:
 - `GET /api/financiero/kpis` — Aggregates totalIngresos/totalEgresos/balanceNeto/totalTransacciones + porBanco breakdown (admin only)
 - `GET /api/financiero/export.csv` & `/export.xlsx` — Export filtered transactions (admin only)
 - `GET /api/financiero/usuarios` & `/bancos` — Helper lists for UI dropdowns (admin only)
+- `GET /api/tareas/catalog`, `POST/PATCH /api/tareas/catalog/:id` — Task catalog (admin manages); includes `targetRole`
+- `GET /api/tareas/assignments`, `POST /api/tareas/assignments` — Admin assigns a task; backend rejects if assignee.role does not match task.targetRole
+- `GET /api/tareas/mine` + `POST /api/tareas/mine/:id/{start,complete}` — Patient's own assigned tasks (role=user)
+- `GET /api/tareas/mine-psi` + `POST /api/tareas/mine-psi/:id/{start,complete}` — Psicólogo's own assigned tasks (role=psicologo, `requirePsicologo` middleware)
 
 ## TypeScript & Composite Projects
 

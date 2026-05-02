@@ -248,6 +248,23 @@ export async function runMigrations() {
       await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS therapeutic_tasks_key_unique ON therapeutic_tasks (key)
       `);
+      // Add target_role column (idempotent) — distinguishes patient vs psicólogo tasks
+      await client.query(`
+        ALTER TABLE therapeutic_tasks
+          ADD COLUMN IF NOT EXISTS target_role TEXT NOT NULL DEFAULT 'paciente'
+      `);
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'therapeutic_tasks_target_role_check'
+          ) THEN
+            ALTER TABLE therapeutic_tasks
+              ADD CONSTRAINT therapeutic_tasks_target_role_check
+              CHECK (target_role IN ('paciente','psicologo'));
+          END IF;
+        END$$;
+      `);
       await client.query(`
         CREATE TABLE IF NOT EXISTS task_assignments (
           id              SERIAL PRIMARY KEY,
@@ -312,6 +329,39 @@ export async function runMigrations() {
         UPDATE therapeutic_tasks
            SET is_available = FALSE, updated_at = NOW()
          WHERE key IN ('anamnesis-menor','primera-consulta-ninos','rueda-vida')
+      `);
+
+      // Seed an initial psicólogo-targeted task: "Notas de Sesión"
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('notas-sesion-psi', 'Notas de Sesión',
+           'Registra las notas clínicas posteriores a cada sesión: observaciones, hipótesis y plan de tratamiento.',
+           'FileText', 'from-violet-500 to-purple-600',
+           'bg-violet-100 text-violet-700', NULL, 'psicologo', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+
+      // Backfill psicólogos: cada psicólogo (role='psicologo') tiene una
+      // asignación pendiente por cada tarea con target_role='psicologo' y
+      // disponible. Idempotente — no duplica.
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE target_role = 'psicologo' AND is_active = TRUE AND is_available = TRUE
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'psicologo'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
       `);
 
       // Backfill: cada paciente (role='user') tiene una asignación por cada

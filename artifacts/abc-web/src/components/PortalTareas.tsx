@@ -29,6 +29,7 @@ interface TaskCatalog {
   id: number; key: string; name: string; description: string;
   icon: string; color: string; badgeColor: string;
   routePath: string | null;
+  targetRole: "paciente" | "psicologo";
   isActive: boolean; isAvailable: boolean;
 }
 interface Paciente { id: number; name: string; email: string; }
@@ -37,6 +38,7 @@ type Status = "pendiente" | "en_progreso" | "completada" | "cancelada";
 interface Assignment {
   id: number;
   taskId: number; taskKey: string; taskName: string; taskIcon: string; taskColor: string;
+  targetRole: "paciente" | "psicologo";
   pacienteId: number; pacienteName: string; pacienteEmail: string;
   psicologoId: number | null; psicologoName: string | null;
   assignedById: number | null; assignedByName: string | null;
@@ -372,8 +374,8 @@ export default function PortalTareas() {
                   <thead className="bg-slate-50/80 border-b border-slate-200">
                     <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
                       <th className="px-4 py-3">Tarea</th>
-                      <th className="px-4 py-3">Paciente</th>
-                      <th className="px-4 py-3">Psicólogo</th>
+                      <th className="px-4 py-3">Asignado a</th>
+                      <th className="px-4 py-3">Supervisa</th>
                       <th className="px-4 py-3">Asignada</th>
                       <th className="px-4 py-3">Vence</th>
                       <th className="px-4 py-3">Estado</th>
@@ -384,7 +386,12 @@ export default function PortalTareas() {
                     {assignments.map(a => (
                       <tr key={a.id} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{a.taskName}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-foreground">{a.taskName}</div>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${a.targetRole === "psicologo" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
+                              {a.targetRole === "psicologo" ? "Psicólogo" : "Paciente"}
+                            </span>
+                          </div>
                           {a.notes && <div className="text-xs text-muted-foreground truncate max-w-xs">{a.notes}</div>}
                         </td>
                         <td className="px-4 py-3">
@@ -569,6 +576,9 @@ export default function PortalTareas() {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full ${t.badgeColor}`}>
                           {t.isAvailable ? "Disponible" : "Próximamente"}
                         </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border ${t.targetRole === "psicologo" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
+                          {t.targetRole === "psicologo" ? "Para psicólogos" : "Para pacientes"}
+                        </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
                       <div className="mt-2 flex items-center gap-2">
@@ -615,21 +625,30 @@ export default function PortalTareas() {
               </Select>
             </div>
 
-            <div>
-              <Label className="text-xs">Paciente</Label>
-              <Select
-                value={form.pacienteId}
-                onValueChange={(v) => setForm(f => ({ ...f, pacienteId: v }))}
-                disabled={!!editing}
-              >
-                <SelectTrigger><SelectValue placeholder="Selecciona un paciente" /></SelectTrigger>
-                <SelectContent>
-                  {pacientes.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.name} <span className="text-xs text-muted-foreground">{p.email}</span></SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {(() => {
+              const selectedTask = catalog.find(t => String(t.id) === form.taskId);
+              const isPsiTask = selectedTask?.targetRole === "psicologo";
+              const options = isPsiTask ? psicologos : pacientes;
+              return (
+                <div>
+                  <Label className="text-xs">{isPsiTask ? "Psicólogo asignado" : "Paciente"}</Label>
+                  <Select
+                    value={form.pacienteId}
+                    onValueChange={(v) => setForm(f => ({ ...f, pacienteId: v }))}
+                    disabled={!!editing || !form.taskId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={form.taskId ? `Selecciona un ${isPsiTask ? "psicólogo" : "paciente"}` : "Selecciona una tarea primero"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map(p => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.name} <span className="text-xs text-muted-foreground">{p.email}</span></SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
 
             <div>
               <Label className="text-xs">Psicólogo (opcional)</Label>

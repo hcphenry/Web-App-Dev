@@ -11,6 +11,7 @@ export const therapeuticTasksTable = pgTable("therapeutic_tasks", {
   color: text("color").notNull().default("from-teal-500 to-teal-600"),
   badgeColor: text("badge_color").notNull().default("bg-teal-100 text-teal-700"),
   routePath: text("route_path"),
+  targetRole: text("target_role").notNull().default("paciente"),
   isActive: boolean("is_active").notNull().default(true),
   isAvailable: boolean("is_available").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

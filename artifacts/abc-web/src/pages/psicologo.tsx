@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight, ClipboardList, PlayCircle } from "lucide-react";
 
 // ── Lima/GMT-5 helpers — pure UTC arithmetic, browser-timezone-independent ──
 // Lima is always UTC-5, no DST. Subtract 5h, then read with getUTC* methods.
@@ -354,9 +354,12 @@ export default function PsicologoDashboard() {
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
+          <TabsList className="grid w-full max-w-3xl grid-cols-5 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
             <TabsTrigger value="profile" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Perfil
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ClipboardList className="w-4 h-4 mr-2" /> Mis Tareas
             </TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <CalendarDays className="w-4 h-4 mr-2" /> Disponibilidad
@@ -368,6 +371,11 @@ export default function PsicologoDashboard() {
               <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
             </TabsTrigger>
           </TabsList>
+
+          {/* ── MIS TAREAS ── */}
+          <TabsContent value="tasks">
+            <PsicologoTareasPanel />
+          </TabsContent>
 
           {/* ── PERFIL ── */}
           <TabsContent value="profile">
@@ -993,6 +1001,149 @@ function SlotCard({ slot, onEdit, onDelete, past }: { slot: AvailabilitySlot; on
             </Button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PORTAL PSICÓLOGO: Mis Tareas (assignments donde el psicólogo es el asignado) ───
+interface PsiAssignment {
+  id: number;
+  taskId: number; taskKey: string; taskName: string; taskDescription: string;
+  taskIcon: string; taskColor: string; taskBadgeColor: string;
+  taskRoutePath: string | null; taskIsAvailable: boolean;
+  status: "pendiente" | "en_progreso" | "completada" | "cancelada";
+  dueDate: string | null;
+  assignedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+}
+
+const PSI_STATUS_CHIP: Record<PsiAssignment["status"], { label: string; cls: string; Icon: typeof Clock }> = {
+  pendiente:   { label: "Pendiente",   cls: "bg-amber-100 text-amber-700 border-amber-200",       Icon: Clock },
+  en_progreso: { label: "En progreso", cls: "bg-sky-100 text-sky-700 border-sky-200",             Icon: PlayCircle },
+  completada:  { label: "Completada",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200", Icon: CheckCircle2 },
+  cancelada:   { label: "Cancelada",   cls: "bg-slate-100 text-slate-600 border-slate-200",       Icon: XCircle },
+};
+
+function PsicologoTareasPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: assignments = [], isLoading } = useQuery<PsiAssignment[]>({
+    queryKey: ["psicologo-mine-tasks"],
+    queryFn: async () => {
+      const r = await fetch("/api/tareas/mine-psi");
+      if (!r.ok) throw new Error("Error al cargar tareas");
+      return r.json();
+    },
+  });
+
+  const startMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/tareas/mine-psi/${id}/start`, { method: "POST" });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Error");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["psicologo-mine-tasks"] });
+      toast({ title: "Tarea iniciada" });
+    },
+    onError: (e: Error) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  const completeMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/tareas/mine-psi/${id}/complete`, { method: "POST" });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Error");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["psicologo-mine-tasks"] });
+      toast({ title: "Tarea completada" });
+    },
+    onError: (e: Error) => toast({ variant: "destructive", title: "Error", description: e.message }),
+  });
+
+  if (isLoading) {
+    return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
+  if (assignments.length === 0) {
+    return (
+      <div className="glass-panel rounded-2xl border p-10 text-center">
+        <ClipboardList className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+        <p className="text-sm text-muted-foreground">Aún no tienes tareas asignadas.</p>
+        <p className="text-xs text-muted-foreground mt-1">Cuando un administrador o el equipo te asigne una tarea, aparecerá aquí.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel rounded-2xl border p-4 md:p-5">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-violet-600" />
+          <div>
+            <h2 className="text-lg font-display font-semibold">Mis Tareas</h2>
+            <p className="text-xs text-muted-foreground">Tareas asignadas a ti como psicólogo. Inícialas o márcalas como completadas cuando termines.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        {assignments.map(a => {
+          const cfg = PSI_STATUS_CHIP[a.status];
+          const Icon = cfg.Icon;
+          const isFinal = a.status === "completada" || a.status === "cancelada";
+          return (
+            <div key={a.id} className="rounded-2xl border bg-white/80 shadow-sm overflow-hidden">
+              <div className={`h-1.5 w-full bg-gradient-to-r ${a.taskColor}`} />
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${a.taskColor} text-white flex items-center justify-center shrink-0`}>
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{a.taskName}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{a.taskDescription}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap ${cfg.cls}`}>
+                    <Icon className="w-3 h-3" /> {cfg.label}
+                  </span>
+                </div>
+                {a.notes && (
+                  <p className="text-xs text-muted-foreground mt-3 italic border-l-2 border-violet-200 pl-2">{a.notes}</p>
+                )}
+                <div className="text-[11px] text-muted-foreground mt-3 grid grid-cols-2 gap-x-3 gap-y-1">
+                  <div>Asignada: {format(parseISO(a.assignedAt), "d MMM yyyy", { locale: es })}</div>
+                  {a.dueDate && <div>Vence: {format(parseISO(a.dueDate), "d MMM yyyy", { locale: es })}</div>}
+                  {a.completedAt && <div>Completada: {format(parseISO(a.completedAt), "d MMM yyyy", { locale: es })}</div>}
+                </div>
+                {!isFinal && (
+                  <div className="flex gap-2 mt-4">
+                    {a.status === "pendiente" && (
+                      <Button
+                        size="sm" variant="outline" className="rounded-full"
+                        disabled={startMut.isPending}
+                        onClick={() => startMut.mutate(a.id)}
+                      >
+                        <PlayCircle className="w-4 h-4 mr-1.5" /> Iniciar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm" className="rounded-full bg-emerald-600 hover:bg-emerald-700"
+                      disabled={completeMut.isPending}
+                      onClick={() => completeMut.mutate(a.id)}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> Marcar completada
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
