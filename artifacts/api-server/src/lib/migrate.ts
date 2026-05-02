@@ -206,6 +206,27 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 6 (indexes) skipped"); }
 
+    // PHASE 7: Add primer_nombre and segundo_nombre to patient_profiles
+    try {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'patient_profiles' AND column_name = 'primer_nombre'
+          ) THEN
+            ALTER TABLE patient_profiles ADD COLUMN primer_nombre TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'patient_profiles' AND column_name = 'segundo_nombre'
+          ) THEN
+            ALTER TABLE patient_profiles ADD COLUMN segundo_nombre TEXT;
+          END IF;
+        END $$
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 7 (primer/segundo nombre) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

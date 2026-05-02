@@ -7,6 +7,8 @@ export const patientProfilesTable = pgTable("patient_profiles", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" })
     .unique(),
+  primerNombre: text("primer_nombre"),
+  segundoNombre: text("segundo_nombre"),
   apellidoPaterno: text("apellido_paterno"),
   apellidoMaterno: text("apellido_materno"),
   perioricidad: text("perioricidad"),

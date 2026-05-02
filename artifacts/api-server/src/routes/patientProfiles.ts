@@ -16,6 +16,8 @@ const dateField = z.union([
 // Governance fields (estado, costoTerapia, psicologaAsignada) are intentionally
 // excluded here; they are managed exclusively by clinic administrators.
 const patientProfileSchema = z.object({
+  primerNombre: z.string().max(100).nullable().optional(),
+  segundoNombre: z.string().max(100).nullable().optional(),
   apellidoPaterno: z.string().max(100).nullable().optional(),
   apellidoMaterno: z.string().max(100).nullable().optional(),
   perioricidad: z.enum(["semanal", "quincenal", "mensual", "intensivo"]).nullable().optional(),
@@ -131,6 +133,8 @@ router.put("/patient/profile", requireAuth, async (req, res) => {
 
   const body = parsed.data;
   const data = {
+    primerNombre: body.primerNombre ?? null,
+    segundoNombre: body.segundoNombre ?? null,
     apellidoPaterno: body.apellidoPaterno ?? null,
     apellidoMaterno: body.apellidoMaterno ?? null,
     perioricidad: body.perioricidad ?? null,
@@ -201,6 +205,8 @@ router.get("/psicologo/patients", requirePsicologo, async (req, res) => {
     .select({
       profileId: patientProfilesTable.id,
       userId: patientProfilesTable.userId,
+      primerNombre: patientProfilesTable.primerNombre,
+      segundoNombre: patientProfilesTable.segundoNombre,
       apellidoPaterno: patientProfilesTable.apellidoPaterno,
       apellidoMaterno: patientProfilesTable.apellidoMaterno,
       perioricidad: patientProfilesTable.perioricidad,
@@ -244,6 +250,8 @@ router.get("/psicologo/patients/:id/profile", requirePsicologo, async (req, res)
     .select({
       profileId: patientProfilesTable.id,
       userId: patientProfilesTable.userId,
+      primerNombre: patientProfilesTable.primerNombre,
+      segundoNombre: patientProfilesTable.segundoNombre,
       apellidoPaterno: patientProfilesTable.apellidoPaterno,
       apellidoMaterno: patientProfilesTable.apellidoMaterno,
       perioricidad: patientProfilesTable.perioricidad,
@@ -361,6 +369,8 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
 
   const body = parsed.data;
   const data = {
+    primerNombre: body.primerNombre ?? null,
+    segundoNombre: body.segundoNombre ?? null,
     apellidoPaterno: body.apellidoPaterno ?? null,
     apellidoMaterno: body.apellidoMaterno ?? null,
     perioricidad: body.perioricidad ?? null,

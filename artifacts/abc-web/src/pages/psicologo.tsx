@@ -41,6 +41,8 @@ interface PsychologistProfile {
 interface AssignedPatient {
   profileId: number;
   userId: number;
+  primerNombre: string | null;
+  segundoNombre: string | null;
   apellidoPaterno: string | null;
   apellidoMaterno: string | null;
   perioricidad: string | null;
@@ -366,8 +368,8 @@ export default function PsicologoDashboard() {
                         <div className="min-w-0 flex-1">
                           <p className="font-semibold text-sm text-foreground truncate">
                             {patient.userName}
-                            {(patient.apellidoPaterno || patient.apellidoMaterno) && (
-                              <span className="font-normal text-muted-foreground"> {[patient.apellidoPaterno, patient.apellidoMaterno].filter(Boolean).join(" ")}</span>
+                            {(patient.primerNombre || patient.segundoNombre || patient.apellidoPaterno || patient.apellidoMaterno) && (
+                              <span className="font-normal text-muted-foreground"> {[patient.primerNombre, patient.segundoNombre, patient.apellidoPaterno, patient.apellidoMaterno].filter(Boolean).join(" ")}</span>
                             )}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">{patient.userEmail}</p>
@@ -511,8 +513,8 @@ export default function PsicologoDashboard() {
                 <div>
                   <p className="font-semibold">
                     {selectedPatientProfile.userName}
-                    {(selectedPatientProfile.apellidoPaterno || selectedPatientProfile.apellidoMaterno) && (
-                      <> {[selectedPatientProfile.apellidoPaterno, selectedPatientProfile.apellidoMaterno].filter(Boolean).join(" ")}</>
+                    {(selectedPatientProfile.primerNombre || selectedPatientProfile.segundoNombre || selectedPatientProfile.apellidoPaterno || selectedPatientProfile.apellidoMaterno) && (
+                      <> {[selectedPatientProfile.primerNombre, selectedPatientProfile.segundoNombre, selectedPatientProfile.apellidoPaterno, selectedPatientProfile.apellidoMaterno].filter(Boolean).join(" ")}</>
                     )}
                   </p>
                   <p className="text-sm text-muted-foreground">{selectedPatientProfile.userEmail}</p>

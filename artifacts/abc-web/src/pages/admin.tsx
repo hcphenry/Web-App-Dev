@@ -31,6 +31,8 @@ import {
 interface PatientProfile {
   id?: number;
   userId?: number;
+  primerNombre?: string | null;
+  segundoNombre?: string | null;
   apellidoPaterno?: string | null;
   apellidoMaterno?: string | null;
   perioricidad?: string | null;
@@ -1058,6 +1060,14 @@ export default function AdminDashboard() {
           ) : (
             <form onSubmit={handlePatientProfileSave} className="space-y-5 mt-2">
               <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Primer Nombre</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.primerNombre || ''} onChange={e => setPatientProfile(p => ({ ...p, primerNombre: e.target.value }))} placeholder="Primer nombre" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Segundo Nombre</Label>
+                  <Input className="rounded-xl bg-secondary/30" value={patientProfile.segundoNombre || ''} onChange={e => setPatientProfile(p => ({ ...p, segundoNombre: e.target.value }))} placeholder="Segundo nombre" />
+                </div>
                 <div className="space-y-2">
                   <Label>Apellido Paterno</Label>
                   <Input className="rounded-xl bg-secondary/30" value={patientProfile.apellidoPaterno || ''} onChange={e => setPatientProfile(p => ({ ...p, apellidoPaterno: e.target.value }))} placeholder="Apellido paterno" />
