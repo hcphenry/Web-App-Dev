@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, addHours, setHours, setMinutes, getHours, getMinutes, isToday } from "date-fns";
+import { format, parseISO, isAfter, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, addHours, setHours, setMinutes, getHours, getMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -155,14 +155,50 @@ export default function PsicologoDashboard() {
   const [deletingSlot, setDeletingSlot] = useState<AvailabilitySlot | null>(null);
   const [slotForm, setSlotForm] = useState({ startTime: "", endTime: "", notes: "", isAvailable: true });
 
-  // Week calendar state
+  // Week calendar state — anchored to GMT-5 "today"
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    startOfWeek(new Date(Date.now() + -5 * 60 * 60_000), { weekStartsOn: 1 })
   );
 
   const SCHED_START = 7;  // 7:00 AM
   const SCHED_END = 21;   // 9:00 PM
   const PX_PER_MIN = 2;   // 2px per minute → 120px per hour
+
+  // ── GMT-5 helpers (Lima / Perú) ──────────────────────────────────────────
+  // The API stores and returns timestamps in UTC (ISO 8601).
+  // We shift dates by -300 min so that JS date getters return GMT-5 "local" values
+  // even when the runtime/browser is in a different timezone.
+  const GMT5_OFFSET = -5 * 60; // -300 minutes
+
+  /** UTC ISO string → Date whose getHours/getDate/etc reflect GMT-5 local time */
+  const utcToGMT5 = (isoUtc: string): Date =>
+    new Date(parseISO(isoUtc).getTime() + GMT5_OFFSET * 60_000);
+
+  /** Current moment expressed in GMT-5 "local" coordinates */
+  const nowGMT5 = (): Date => new Date(Date.now() + GMT5_OFFSET * 60_000);
+
+  /** Is the given GMT-5-shifted day "today" in GMT-5? */
+  const isTodayGMT5 = (day: Date): boolean => {
+    const n = nowGMT5();
+    return day.getFullYear() === n.getFullYear()
+      && day.getMonth() === n.getMonth()
+      && day.getDate() === n.getDate();
+  };
+
+  /**
+   * The form shows times in GMT-5. Before sending to the API we add 5 hours
+   * so the server stores the correct UTC value.
+   * Input:  "YYYY-MM-DDTHH:mm"  (represents GMT-5 local time)
+   * Output: "YYYY-MM-DDTHH:mm"  (UTC — what the API expects)
+   */
+  const gmt5FormToUtc = (localDT: string): string => {
+    const [datePart, timePart] = localDT.split("T");
+    const [y, mo, d] = datePart.split("-").map(Number);
+    const [h, mi] = timePart.split(":").map(Number);
+    // GMT-5 → UTC: subtract the offset (offset is negative, so h - (-5) = h + 5)
+    const utcMs = Date.UTC(y, mo - 1, d, h - GMT5_OFFSET / 60, mi);
+    return format(new Date(utcMs), "yyyy-MM-dd'T'HH:mm");
+  };
 
   // Account state
   const [emailForm, setEmailForm] = useState({ email: "", currentPassword: "" });
@@ -227,9 +263,12 @@ export default function PsicologoDashboard() {
 
   const openEditSlot = (slot: AvailabilitySlot) => {
     setEditingSlot(slot);
+    // Convert stored UTC timestamps → GMT-5 so the form shows the local time
+    const gmt5Start = utcToGMT5(slot.startTime);
+    const gmt5End   = utcToGMT5(slot.endTime);
     setSlotForm({
-      startTime: slot.startTime.slice(0, 16),
-      endTime: slot.endTime.slice(0, 16),
+      startTime: format(gmt5Start, "yyyy-MM-dd'T'HH:mm"),
+      endTime:   format(gmt5End,   "yyyy-MM-dd'T'HH:mm"),
       notes: slot.notes || "",
       isAvailable: slot.isAvailable,
     });
@@ -238,10 +277,17 @@ export default function PsicologoDashboard() {
 
   const handleSlotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Form values are in GMT-5 — convert to UTC before sending to the API
+    const apiData = {
+      startTime:   gmt5FormToUtc(slotForm.startTime),
+      endTime:     gmt5FormToUtc(slotForm.endTime),
+      notes:       slotForm.notes,
+      isAvailable: slotForm.isAvailable,
+    };
     if (editingSlot) {
-      updateSlot.mutate({ id: editingSlot.id, data: slotForm });
+      updateSlot.mutate({ id: editingSlot.id, data: apiData });
     } else {
-      createSlot.mutate(slotForm);
+      createSlot.mutate(apiData);
     }
   };
 
@@ -383,7 +429,7 @@ export default function PsicologoDashboard() {
                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setCurrentWeekStart(w => addWeeks(w, 1))}>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="sm" className="rounded-full text-xs h-8 ml-1" onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+                  <Button variant="outline" size="sm" className="rounded-full text-xs h-8 ml-1" onClick={() => setCurrentWeekStart(startOfWeek(nowGMT5(), { weekStartsOn: 1 }))}>
                     Hoy
                   </Button>
                   <Button size="sm" className="rounded-full h-8 shadow-sm" onClick={() => openCreateSlot()}>
@@ -399,7 +445,7 @@ export default function PsicologoDashboard() {
                   <div className="py-3" />
                   {Array.from({ length: 7 }, (_, i) => {
                     const day = addDays(currentWeekStart, i);
-                    const today = isToday(day);
+                    const today = isTodayGMT5(day);
                     return (
                       <div key={i} className={`py-3 text-center border-l border-border/30 ${today ? 'bg-primary/5' : ''}`}>
                         <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
@@ -433,8 +479,9 @@ export default function PsicologoDashboard() {
                       {/* 7 day columns */}
                       {Array.from({ length: 7 }, (_, dayIdx) => {
                         const day = addDays(currentWeekStart, dayIdx);
-                        const today = isToday(day);
-                        const daySlots = slots.filter(s => isSameDay(parseISO(s.startTime), day));
+                        const today = isTodayGMT5(day);
+                        // Convert each slot's UTC startTime to GMT-5 before comparing
+                        const daySlots = slots.filter(s => isSameDay(utcToGMT5(s.startTime), day));
 
                         return (
                           <div
@@ -466,15 +513,15 @@ export default function PsicologoDashboard() {
                               <div key={`h${i}`} className="absolute left-0 right-0 border-t border-border/10 border-dashed pointer-events-none" style={{ top: `${(i + 0.5) * PX_PER_MIN * 60}px` }} />
                             ))}
 
-                            {/* Slot blocks */}
+                            {/* Slot blocks — times converted UTC → GMT-5 */}
                             {daySlots.map(slot => {
-                              const start = parseISO(slot.startTime);
-                              const end = parseISO(slot.endTime);
+                              const start = utcToGMT5(slot.startTime);
+                              const end   = utcToGMT5(slot.endTime);
                               const startMin = (getHours(start) - SCHED_START) * 60 + getMinutes(start);
-                              const endMin = (getHours(end) - SCHED_START) * 60 + getMinutes(end);
+                              const endMin   = (getHours(end)   - SCHED_START) * 60 + getMinutes(end);
                               const cStart = Math.max(0, startMin);
-                              const cEnd = Math.min((SCHED_END - SCHED_START) * 60, endMin);
-                              const top = cStart * PX_PER_MIN;
+                              const cEnd   = Math.min((SCHED_END - SCHED_START) * 60, endMin);
+                              const top    = cStart * PX_PER_MIN;
                               const height = Math.max((cEnd - cStart) * PX_PER_MIN, 24);
 
                               return (
@@ -487,7 +534,7 @@ export default function PsicologoDashboard() {
                                   }`}
                                   style={{ top: `${top}px`, height: `${height}px` }}
                                   onClick={e => { e.stopPropagation(); openEditSlot(slot); }}
-                                  title={`${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}${slot.notes ? '\n' + slot.notes : ''}`}
+                                  title={`${format(start, 'HH:mm')} – ${format(end, 'HH:mm')} (GMT-5)${slot.notes ? '\n' + slot.notes : ''}`}
                                 >
                                   <p className="truncate leading-tight">{format(start, 'HH:mm')}–{format(end, 'HH:mm')}</p>
                                   {height >= 48 && slot.notes && (
