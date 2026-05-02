@@ -314,6 +314,28 @@ export default function PsicologoDashboard() {
                   <InfoField label="Fecha de Baja" value={profile.deregistrationDate || "—"} />
                   <InfoField label="% de Comisión" value={profile.commissionPercentage ? `${profile.commissionPercentage}%` : null} />
                 </div>
+
+                <div className="pt-2 border-t border-border/50">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Resumen de Pacientes</h3>
+                  {loadingPatients ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Cargando...</div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-xl bg-primary/5 border border-primary/10 p-4 text-center">
+                        <p className="text-3xl font-bold text-primary">{myPatients.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">Total asignados</p>
+                      </div>
+                      <div className="rounded-xl bg-green-50 border border-green-100 p-4 text-center">
+                        <p className="text-3xl font-bold text-green-700">{myPatients.filter(p => p.estado === "activo").length}</p>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">Activos</p>
+                      </div>
+                      <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 text-center">
+                        <p className="text-3xl font-bold text-gray-500">{myPatients.filter(p => p.estado === "inactivo").length}</p>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">Inactivos</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="text-center py-16 text-muted-foreground">No se pudo cargar el perfil.</div>
