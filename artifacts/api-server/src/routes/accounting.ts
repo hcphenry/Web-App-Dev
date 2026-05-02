@@ -583,7 +583,7 @@ router.get("/pacientes", requireAdmin, async (_req, res) => {
     .from(usersTable)
     .leftJoin(patientProfilesTable, eq(patientProfilesTable.userId, usersTable.id))
     .where(eq(usersTable.role, "user"))
-    .orderBy(usersTable.name);
+    .orderBy(sql`lower(${usersTable.name})`);
   res.json(rows);
 });
 
@@ -599,7 +599,7 @@ router.get("/psicologos", requireAdmin, async (_req, res) => {
     .from(usersTable)
     .leftJoin(psychologistProfilesTable, eq(psychologistProfilesTable.userId, usersTable.id))
     .where(eq(usersTable.role, "psicologo"))
-    .orderBy(usersTable.name);
+    .orderBy(sql`lower(${usersTable.name})`);
   res.json(rows);
 });
 
