@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, pool } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 import {
@@ -84,6 +84,21 @@ router.post("/users", requireAdmin, async (req, res) => {
     passwordHash,
     role: role ?? "user",
   }).returning();
+
+  // Auto-crear patient_profile cuando se da de alta a un paciente
+  // (ON CONFLICT DO NOTHING porque user_id tiene UNIQUE)
+  if ((role ?? "user") === "user") {
+    try {
+      await pool.query(
+        `INSERT INTO patient_profiles (user_id, estado, pais, created_at, updated_at)
+         VALUES ($1, 'activo', 'Perú', NOW(), NOW())
+         ON CONFLICT (user_id) DO NOTHING`,
+        [user.id]
+      );
+    } catch (e) {
+      // No bloqueamos el alta del usuario si esto falla; queda para el backfill de migración.
+    }
+  }
 
   await logAudit({
     actorId: (req as any).session?.userId ?? null,

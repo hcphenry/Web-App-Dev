@@ -642,6 +642,21 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 15 (plan intervención niños) skipped"); }
 
+    // ── PHASE 16: backfill patient_profiles for any paciente que no tenga uno ──
+    try {
+      const r = await client.query(`
+        INSERT INTO patient_profiles (user_id, estado, pais, created_at, updated_at)
+        SELECT u.id, 'activo', 'Perú', NOW(), NOW()
+          FROM users u
+          LEFT JOIN patient_profiles pp ON pp.user_id = u.id
+         WHERE u.role = 'user' AND pp.id IS NULL
+        RETURNING id
+      `);
+      if (r.rowCount && r.rowCount > 0) {
+        logger.info(`[migrate] ✓ PHASE 16: created ${r.rowCount} patient_profiles for existing pacientes`);
+      }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 16 (backfill patient_profiles) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
