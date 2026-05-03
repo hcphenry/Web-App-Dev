@@ -29,14 +29,29 @@ interface AbcAssignment {
   completedAt: string | null;
 }
 
-const SUPPORTED_TASK_KEYS = new Set(["registro-abc", "linea-de-vida"]);
+const SUPPORTED_TASK_KEYS = new Set([
+  "registro-abc",
+  "linea-de-vida",
+  "consentimiento-informado",
+]);
+
+type SupportedRoute =
+  | "/abc-form"
+  | "/linea-vida-form"
+  | "/consentimiento-informado-form";
 
 const TASK_META: Record<
   string,
-  { icon: keyof typeof Feather.glyphMap; bg: string; fg: string; route: "/abc-form" | "/linea-vida-form" }
+  { icon: keyof typeof Feather.glyphMap; bg: string; fg: string; route: SupportedRoute }
 > = {
   "registro-abc": { icon: "edit-3", bg: "", fg: "", route: "/abc-form" },
   "linea-de-vida": { icon: "activity", bg: "#f3e8ff", fg: "#a855f7", route: "/linea-vida-form" },
+  "consentimiento-informado": {
+    icon: "shield",
+    bg: "#e0f2fe",
+    fg: "#0369a1",
+    route: "/consentimiento-informado-form",
+  },
 };
 
 function formatDate(iso: string): string {

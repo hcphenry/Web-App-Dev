@@ -32,6 +32,7 @@ import DesarrolloSesionForm from "@/components/DesarrolloSesionForm";
 import ConsultaPsicologicaForm from "@/components/ConsultaPsicologicaForm";
 import PlanIntervencionForm from "@/components/PlanIntervencionForm";
 import LineaVidaForm from "@/components/LineaVidaForm";
+import ConsentimientoInformadoForm from "@/components/ConsentimientoInformadoForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -81,7 +82,7 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida' | 'consentimiento-informado'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
@@ -90,6 +91,7 @@ export default function RegisterAbc() {
   const [activePlanIntervencionAssignment, setActivePlanIntervencionAssignment] = useState<number | null>(null);
   const [activePlanIntervencionNinosAssignment, setActivePlanIntervencionNinosAssignment] = useState<number | null>(null);
   const [activeLineaVidaAssignment, setActiveLineaVidaAssignment] = useState<number | null>(null);
+  const [activeConsentimientoAssignment, setActiveConsentimientoAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -267,6 +269,7 @@ export default function RegisterAbc() {
         const isPlanIntervencion = a.taskKey === 'plan-intervencion-adultos';
         const isPlanIntervencionNinos = a.taskKey === 'plan-intervencion-ninos';
         const isLineaDeVida = a.taskKey === 'linea-de-vida';
+        const isConsentimiento = a.taskKey === 'consentimiento-informado';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -300,12 +303,13 @@ export default function RegisterAbc() {
             else if (isPlanIntervencion) { setActivePlanIntervencionAssignment(a.id); setView('plan-intervencion-adultos'); }
             else if (isPlanIntervencionNinos) { setActivePlanIntervencionNinosAssignment(a.id); setView('plan-intervencion-ninos'); }
             else if (isLineaDeVida) { setActiveLineaVidaAssignment(a.id); setView('linea-de-vida'); }
+            else if (isConsentimiento) { setActiveConsentimientoAssignment(a.id); setView('consentimiento-informado'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           // Repetibles (ABC, Desarrollo Sesión, Consulta Psicológica, Desarrollo por sesión paciente
           // y Plan de intervención) no muestran el botón "Marcar completada" porque el paciente
           // puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida)
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida || isConsentimiento)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -420,6 +424,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Línea de Vida</h1>
                 <p className="text-muted-foreground mt-1">Tu historia personal en una línea temporal guiada</p>
+              </>
+            )}
+            {view === 'consentimiento-informado' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Consentimiento Informado</h1>
+                <p className="text-muted-foreground mt-1">Tratamiento legal de tu información digital · Ley 29733 / MINSA</p>
               </>
             )}
           </div>
@@ -607,6 +617,14 @@ export default function RegisterAbc() {
             assignmentId={activeLineaVidaAssignment}
             onCancel={() => { setView('dashboard'); setActiveLineaVidaAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveLineaVidaAssignment(null); }}
+          />
+        )}
+
+        {view === 'consentimiento-informado' && (
+          <ConsentimientoInformadoForm
+            assignmentId={activeConsentimientoAssignment}
+            onCancel={() => { setView('dashboard'); setActiveConsentimientoAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveConsentimientoAssignment(null); }}
           />
         )}
 

@@ -13,3 +13,4 @@ export * from "./desarrolloSesionRecords";
 export * from "./consultaPsicologicaRecords";
 export * from "./planIntervencionRecords";
 export * from "./lineaVidaRecords";
+export * from "./consentimientoInformadoRecords";

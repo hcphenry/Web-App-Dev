@@ -29,6 +29,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="abc-form" options={{ presentation: "card" }} />
       <Stack.Screen name="linea-vida-form" options={{ presentation: "card" }} />
+      <Stack.Screen name="consentimiento-informado-form" options={{ presentation: "card" }} />
     </Stack>
   );
 }

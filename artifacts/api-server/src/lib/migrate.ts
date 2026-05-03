@@ -718,6 +718,65 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 18 (línea de vida) skipped"); }
 
+    // ── PHASE 19: Consentimiento Informado (paciente, único) ──────────────
+    // Tabla legal de aceptación + nueva tarea en el catálogo + backfill de
+    // asignaciones para cada paciente existente. Cumple Ley 29733 / MINSA.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS consentimiento_informado_records (
+          id                       SERIAL PRIMARY KEY,
+          paciente_id              INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id            INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          accepted                 BOOLEAN NOT NULL DEFAULT FALSE,
+          accepted_at              TIMESTAMP,
+          full_name                TEXT NOT NULL,
+          document_type            TEXT NOT NULL,
+          document_number          TEXT NOT NULL,
+          ip_address               TEXT,
+          user_agent               TEXT,
+          consent_version          TEXT NOT NULL,
+          consent_text_snapshot    TEXT NOT NULL,
+          created_at               TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at               TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS consentimiento_informado_paciente_idx ON consentimiento_informado_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS consentimiento_informado_assignment_idx ON consentimiento_informado_records (assignment_id)`);
+
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('consentimiento-informado', 'Consentimiento Informado',
+           'Lee y acepta el consentimiento informado para el tratamiento de tu información clínica digital, según la Ley N.° 29733 y la normativa del MINSA. Requisito obligatorio antes de continuar tu atención.',
+           'FileText', 'from-sky-500 to-blue-600',
+           'bg-sky-100 text-sky-700', '/consentimiento-informado', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'consentimiento-informado'
+      `);
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key = 'consentimiento-informado'
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 19 (consentimiento informado) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
