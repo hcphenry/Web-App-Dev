@@ -1,11 +1,17 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { LoginBody, LoginResponse, GetMeResponse, LogoutResponse } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
+
+const TOKEN_SECRET = process.env.SESSION_SECRET;
+if (!TOKEN_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET environment variable is required in production");
+}
 
 router.post("/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
@@ -51,7 +57,11 @@ router.post("/login", async (req, res) => {
     },
   });
 
-  res.json(response);
+  const token = TOKEN_SECRET
+    ? jwt.sign({ userId: user.id }, TOKEN_SECRET, { expiresIn: "7d" })
+    : null;
+
+  res.json({ ...response, token });
 });
 
 router.post("/logout", (req, res) => {

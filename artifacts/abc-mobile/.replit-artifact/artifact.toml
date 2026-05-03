@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "ABC Positivamente - Móvil"
+version = "1.0.0"
+id = "artifacts/abc-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 23124
+
+[services.development]
+run = "pnpm --filter @workspace/abc-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/abc-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/abc-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "23124"
+BASE_PATH = "/mobile/"
