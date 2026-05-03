@@ -39,7 +39,7 @@ interface Tarifa {
   updatedAt: string;
 }
 interface Paciente {
-  id: number; name: string; email: string; costoTerapia: string | null;
+  id: number; name: string; email: string;
   psicologoAsignadoId: number | null;
   psicologoAsignadoName: string | null;
 }

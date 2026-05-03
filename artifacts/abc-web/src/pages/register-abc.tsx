@@ -75,7 +75,6 @@ interface PatientProfile {
   ciudad?: string | null;
   departamento?: string | null;
   pais?: string | null;
-  costoTerapia?: string | null;
   psicologaAsignada?: string | null;
 }
 
@@ -804,13 +803,6 @@ export default function RegisterAbc() {
                           <span className="text-xs text-muted-foreground">(asignado por administración)</span>
                         </Label>
                         <Input className="rounded-xl bg-white/30 text-muted-foreground" value={profile.psicologaAsignada || '—'} readOnly disabled />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-1">
-                          Costo de Terapia
-                          <span className="text-xs text-muted-foreground">(asignado por administración)</span>
-                        </Label>
-                        <Input className="rounded-xl bg-white/30 text-muted-foreground" value={profile.costoTerapia ? `S/ ${profile.costoTerapia}` : '—'} readOnly disabled />
                       </div>
                     </div>
                   </div>

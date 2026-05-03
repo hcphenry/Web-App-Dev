@@ -73,7 +73,6 @@ interface PatientProfile {
   ciudad?: string | null;
   departamento?: string | null;
   pais?: string | null;
-  costoTerapia?: string | null;
   psicologaAsignada?: string | null;
 }
 
@@ -1735,10 +1734,6 @@ export default function AdminDashboard() {
                   <div className="space-y-2">
                     <Label>Psicóloga Asignada</Label>
                     <Input className="rounded-xl bg-secondary/30" value={patientProfile.psicologaAsignada || ''} onChange={e => setPatientProfile(p => ({ ...p, psicologaAsignada: e.target.value }))} placeholder="Nombre de la psicóloga" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Costo de Terapia (S/.)</Label>
-                    <Input className="rounded-xl bg-secondary/30" value={patientProfile.costoTerapia || ''} onChange={e => setPatientProfile(p => ({ ...p, costoTerapia: e.target.value }))} placeholder="0.00" />
                   </div>
                 </div>
               </div>

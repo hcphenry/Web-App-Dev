@@ -35,7 +35,7 @@ interface Tarifa {
   updatedAt: string;
 }
 interface Paciente {
-  id: number; name: string; email: string; costoTerapia: string | null;
+  id: number; name: string; email: string;
 }
 interface Psicologo {
   id: number; name: string; email: string; comisionPct: string | null;
@@ -750,9 +750,8 @@ export default function PortalContable() {
                 <Input type="number" step="0.01" min="0" value={sesionForm.montoCobrado}
                   onChange={e => setSesionForm(f => ({ ...f, montoCobrado: e.target.value }))} className="rounded-lg"
                   placeholder={(() => {
-                    const p = pacientes.find(x => String(x.id) === sesionForm.pacienteId);
                     const t = tarifas.find(x => x.pacienteId === parseInt(sesionForm.pacienteId));
-                    return t ? String(t.montoPorSesion) : (p?.costoTerapia || "");
+                    return t ? String(t.montoPorSesion) : "";
                   })()} />
               </div>
             </div>

@@ -13,8 +13,9 @@ const dateField = z.union([
 ]).optional();
 
 // Fields writable by the patient themselves.
-// Governance fields (estado, costoTerapia, psicologaAsignada) are intentionally
+// Governance fields (estado, psicologaAsignada) are intentionally
 // excluded here; they are managed exclusively by clinic administrators.
+// El costo por sesión vive en `tarifas_paciente` (no en este perfil).
 const patientProfileSchema = z.object({
   primerNombre: z.string().max(100).nullable().optional(),
   segundoNombre: z.string().max(100).nullable().optional(),
@@ -36,7 +37,6 @@ const patientProfileSchema = z.object({
 
 const adminPatientProfileSchema = patientProfileSchema.extend({
   estado: z.enum(["activo", "inactivo", "suspendido"]).nullable().optional(),
-  costoTerapia: z.string().max(20).nullable().optional(),
   psicologaAsignada: z.string().max(200).nullable().optional(),
 });
 
@@ -213,7 +213,6 @@ router.get("/psicologo/patients", requirePsicologo, async (req, res) => {
       fechaAlta: patientProfilesTable.fechaAlta,
       estado: patientProfilesTable.estado,
       nroCelular: patientProfilesTable.nroCelular,
-      costoTerapia: patientProfilesTable.costoTerapia,
       psicologaAsignada: patientProfilesTable.psicologaAsignada,
       userName: usersTable.name,
       userEmail: usersTable.email,
@@ -267,7 +266,6 @@ router.get("/psicologo/patients/:id/profile", requirePsicologo, async (req, res)
       ciudad: patientProfilesTable.ciudad,
       departamento: patientProfilesTable.departamento,
       pais: patientProfilesTable.pais,
-      costoTerapia: patientProfilesTable.costoTerapia,
       psicologaAsignada: patientProfilesTable.psicologaAsignada,
       createdAt: patientProfilesTable.createdAt,
       updatedAt: patientProfilesTable.updatedAt,
@@ -386,7 +384,6 @@ router.put("/admin/patients/:id/profile", requireAdmin, async (req, res) => {
     ciudad: body.ciudad ?? null,
     departamento: body.departamento ?? null,
     pais: body.pais ?? "Perú",
-    costoTerapia: body.costoTerapia ?? null,
     psicologaAsignada: body.psicologaAsignada ?? null,
     updatedAt: new Date(),
   };

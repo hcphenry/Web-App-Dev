@@ -599,7 +599,6 @@ router.get("/pacientes", requireAdmin, async (_req, res) => {
       id: usersTable.id,
       name: usersTable.name,
       email: usersTable.email,
-      costoTerapia: patientProfilesTable.costoTerapia,
       psicologaAsignada: patientProfilesTable.psicologaAsignada,
     })
     .from(usersTable)
@@ -621,7 +620,6 @@ router.get("/pacientes", requireAdmin, async (_req, res) => {
       id: r.id,
       name: r.name,
       email: r.email,
-      costoTerapia: r.costoTerapia,
       psicologoAsignadoId: psi?.id ?? null,
       psicologoAsignadoName: psi?.name ?? null,
     };

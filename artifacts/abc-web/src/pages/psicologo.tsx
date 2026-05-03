@@ -105,7 +105,6 @@ interface AssignedPatient {
   fechaAlta: string | null;
   estado: string | null;
   nroCelular: string | null;
-  costoTerapia: string | null;
   psicologaAsignada: string | null;
   userName: string;
   userEmail: string;
@@ -645,9 +644,6 @@ export default function PsicologoDashboard() {
                             {patient.perioricidad && (
                               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{patient.perioricidad}</span>
                             )}
-                            {patient.costoTerapia && (
-                              <span className="text-xs text-muted-foreground">S/ {patient.costoTerapia}</span>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -847,7 +843,6 @@ export default function PsicologoDashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <InfoField label="Estado" value={selectedPatientProfile.estado} />
                     <InfoField label="Perioricidad" value={selectedPatientProfile.perioricidad} />
-                    <InfoField label="Costo de Terapia" value={selectedPatientProfile.costoTerapia ? `S/ ${selectedPatientProfile.costoTerapia}` : null} />
                     <InfoField label="Fecha de Alta" value={selectedPatientProfile.fechaAlta} />
                     <InfoField label="Celular" value={selectedPatientProfile.nroCelular} />
                     <InfoField label="Fecha de Nacimiento" value={selectedPatientProfile.fechaNacimiento} />

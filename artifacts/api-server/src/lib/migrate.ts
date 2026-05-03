@@ -101,7 +101,6 @@ export async function runMigrations() {
         ciudad              TEXT,
         departamento        TEXT,
         pais                TEXT DEFAULT 'Perú',
-        costo_terapia       TEXT,
         psicologa_asignada  TEXT,
         created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
@@ -656,6 +655,12 @@ export async function runMigrations() {
         logger.info(`[migrate] ✓ PHASE 16: created ${r.rowCount} patient_profiles for existing pacientes`);
       }
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 16 (backfill patient_profiles) skipped"); }
+
+    // ── PHASE 17: drop redundant patient_profiles.costo_terapia ──
+    // tarifas_paciente es la fuente única de costos por sesión.
+    try {
+      await client.query(`ALTER TABLE patient_profiles DROP COLUMN IF EXISTS costo_terapia`);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 17 (drop costo_terapia) skipped"); }
 
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {

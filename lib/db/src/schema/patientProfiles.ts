@@ -24,7 +24,6 @@ export const patientProfilesTable = pgTable("patient_profiles", {
   ciudad: text("ciudad"),
   departamento: text("departamento"),
   pais: text("pais").default("Perú"),
-  costoTerapia: text("costo_terapia"),
   psicologaAsignada: text("psicologa_asignada"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
