@@ -359,43 +359,13 @@ export async function runMigrations() {
       // Backfill psicólogos: cada psicólogo (role='psicologo') tiene una
       // asignación pendiente por cada tarea con target_role='psicologo' y
       // disponible. Idempotente — no duplica.
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE target_role = 'psicologo' AND is_active = TRUE AND is_available = TRUE
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'psicologo'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
 
       // Backfill: cada paciente (role='user') tiene una asignación pendiente
       // de Registro ABC (repetible). Nunca duplica.
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key IN ('registro-abc')
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 8 (therapeutic tasks) skipped"); }
 
     // ── PHASE 9: anamnesis records (form responses for "Anamnesis menor 18") ──
@@ -493,23 +463,8 @@ export async function runMigrations() {
       `);
 
       // Backfill: cada paciente recibe una asignación pendiente repetible.
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'consulta-psicologica-adultos'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 12 (consulta psicológica records) skipped"); }
 
     // ── PHASE 13: nueva tarea repetible "Desarrollo por sesión jóvenes y adultos"
@@ -532,23 +487,8 @@ export async function runMigrations() {
          WHERE key = 'desarrollo-sesion-paciente'
       `);
       // Backfill: cada paciente recibe una asignación pendiente repetible.
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'desarrollo-sesion-paciente'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 13 (desarrollo sesión paciente) skipped"); }
 
     // ── PHASE 14: Plan de intervención jóvenes y adultos (paciente, repetible)
@@ -585,23 +525,8 @@ export async function runMigrations() {
          WHERE key = 'plan-intervencion-adultos'
       `);
       // Backfill: cada paciente recibe una asignación pendiente repetible.
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'plan-intervencion-adultos'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 14 (plan intervención adultos) skipped"); }
 
     // ── PHASE 15: Plan de intervención niños (paciente, repetible) ─────────
@@ -622,23 +547,8 @@ export async function runMigrations() {
            SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
          WHERE key = 'plan-intervencion-ninos'
       `);
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'plan-intervencion-ninos'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 15 (plan intervención niños) skipped"); }
 
     // ── PHASE 16: backfill patient_profiles for any paciente que no tenga uno ──
@@ -699,23 +609,8 @@ export async function runMigrations() {
            SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
          WHERE key = 'linea-de-vida'
       `);
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'linea-de-vida'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 18 (línea de vida) skipped"); }
 
     // ── PHASE 19: Consentimiento Informado (paciente, único) ──────────────
@@ -758,24 +653,25 @@ export async function runMigrations() {
            SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
          WHERE key = 'consentimiento-informado'
       `);
-      await client.query(`
-        WITH t AS (
-          SELECT id FROM therapeutic_tasks
-           WHERE key = 'consentimiento-informado'
-        )
-        INSERT INTO task_assignments
-          (task_id, paciente_id, assigned_by_id, status,
-           assigned_at, started_at, completed_at, notes)
-        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
-               'Asignación masiva inicial.'
-          FROM users u CROSS JOIN t
-         WHERE u.role = 'user'
-           AND NOT EXISTS (
-             SELECT 1 FROM task_assignments ta
-              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
-           )
-      `);
+      // Backfill masivo desactivado — las asignaciones se crean sólo cuando
+      // el admin/psicólogo las asigna explícitamente desde el portal.
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 19 (consentimiento informado) skipped"); }
+
+    // ── PHASE 20: Limpieza de asignaciones masivas no utilizadas ──────────
+    // Versiones anteriores asignaban automáticamente todas las tareas-paciente
+    // a todos los usuarios al arrancar (notes='Asignación masiva inicial.').
+    // Eso hacía que el portal del paciente mostrara tareas que el admin nunca
+    // asignó. Borramos sólo las que están todavía 'pendiente' y nunca fueron
+    // iniciadas ni completadas — preservamos todo el progreso real.
+    try {
+      await client.query(`
+        DELETE FROM task_assignments
+         WHERE notes = 'Asignación masiva inicial.'
+           AND status = 'pendiente'
+           AND started_at IS NULL
+           AND completed_at IS NULL
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 20 (cleanup mass assignments) skipped"); }
 
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
