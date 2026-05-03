@@ -29,7 +29,15 @@ interface AbcAssignment {
   completedAt: string | null;
 }
 
-const ABC_TASK_KEY = "registro-abc";
+const SUPPORTED_TASK_KEYS = new Set(["registro-abc", "linea-de-vida"]);
+
+const TASK_META: Record<
+  string,
+  { icon: keyof typeof Feather.glyphMap; bg: string; fg: string; route: "/abc-form" | "/linea-vida-form" }
+> = {
+  "registro-abc": { icon: "edit-3", bg: "", fg: "", route: "/abc-form" },
+  "linea-de-vida": { icon: "activity", bg: "#f3e8ff", fg: "#a855f7", route: "/linea-vida-form" },
+};
 
 function formatDate(iso: string): string {
   try {
@@ -59,7 +67,7 @@ export default function TasksScreen() {
     queryKey: ["my-assignments"],
     queryFn: async () => {
       const all = await authFetch<AbcAssignment[]>("/api/tareas/mine");
-      return all.filter((a) => a.taskKey === ABC_TASK_KEY);
+      return all.filter((a) => SUPPORTED_TASK_KEYS.has(a.taskKey));
     },
   });
 
@@ -81,10 +89,15 @@ export default function TasksScreen() {
       item.status === "en_progreso" ? colors.accentForeground :
       item.status === "cancelada" ? colors.destructive :
       colors.mutedForeground;
+    const meta = TASK_META[item.taskKey];
+    const route = meta?.route ?? "/abc-form";
+    const iconBg = meta?.bg || colors.accent;
+    const iconFg = meta?.fg || colors.accentForeground;
+    const iconName = meta?.icon ?? "edit-3";
 
     return (
       <Pressable
-        onPress={() => router.push({ pathname: "/abc-form", params: { assignmentId: String(item.id) } })}
+        onPress={() => router.push({ pathname: route, params: { assignmentId: String(item.id) } })}
         style={({ pressed }) => [
           styles.card,
           {
@@ -96,8 +109,8 @@ export default function TasksScreen() {
         ]}
         testID={`assignment-${item.id}`}
       >
-        <View style={[styles.iconBubble, { backgroundColor: colors.accent }]}>
-          <Feather name="edit-3" size={22} color={colors.accentForeground} />
+        <View style={[styles.iconBubble, { backgroundColor: iconBg }]}>
+          <Feather name={iconName} size={22} color={iconFg} />
         </View>
         <View style={styles.cardBody}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
@@ -149,9 +162,9 @@ export default function TasksScreen() {
       </View>
 
       <View style={styles.sectionHead}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tus tareas ABC</Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tus tareas</Text>
         <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
-          Toca una tarea para registrar lo que sentiste
+          Toca una tarea para empezar
         </Text>
       </View>
 
@@ -200,7 +213,7 @@ export default function TasksScreen() {
               <Feather name="inbox" size={32} color={colors.mutedForeground} />
               <Text style={[styles.errorTitle, { color: colors.foreground }]}>Sin tareas asignadas</Text>
               <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-                Tu psicóloga aún no te ha asignado un Registro ABC.
+                Tu psicóloga aún no te ha asignado tareas.
               </Text>
             </View>
           }
