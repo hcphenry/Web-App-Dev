@@ -640,7 +640,7 @@ export default function PortalTareas() {
           <DialogHeader>
             <DialogTitle>{editing ? "Editar asignación" : "Nueva asignación"}</DialogTitle>
             <DialogDescription>
-              {editing ? "Actualiza el estado, vencimiento o notas." : "Asigna una tarea del catálogo a un paciente."}
+              {editing ? "Actualiza el estado, vencimiento o notas." : "Asigna una tarea del catálogo. Selecciona primero la tarea — la lista de destinatarios se ajusta según para quién es la tarea."}
             </DialogDescription>
           </DialogHeader>
 
@@ -649,14 +649,20 @@ export default function PortalTareas() {
               <Label className="text-xs">Tarea</Label>
               <Select
                 value={form.taskId}
-                onValueChange={(v) => setForm(f => ({ ...f, taskId: v }))}
+                onValueChange={(v) => setForm(f => ({ ...f, taskId: v, pacienteId: "" }))}
                 disabled={!!editing}
               >
                 <SelectTrigger><SelectValue placeholder="Selecciona una tarea" /></SelectTrigger>
                 <SelectContent>
                   {catalog.filter(t => t.isActive).map(t => (
                     <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name} {!t.isAvailable && <span className="text-xs text-muted-foreground">(Próximamente)</span>}
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${t.targetRole === "psicologo" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
+                          {t.targetRole === "psicologo" ? "PSI" : "PAC"}
+                        </span>
+                        {t.name}
+                        {!t.isAvailable && <span className="text-xs text-muted-foreground">(Próximamente)</span>}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -665,44 +671,61 @@ export default function PortalTareas() {
 
             {(() => {
               const selectedTask = catalog.find(t => String(t.id) === form.taskId);
-              const isPsiTask = selectedTask?.targetRole === "psicologo";
+              if (!selectedTask) return null;
+              const isPsiTask = selectedTask.targetRole === "psicologo";
               const options = isPsiTask ? psicologos : pacientes;
               return (
-                <div>
-                  <Label className="text-xs">{isPsiTask ? "Psicólogo asignado" : "Paciente"}</Label>
-                  <Select
-                    value={form.pacienteId}
-                    onValueChange={(v) => setForm(f => ({ ...f, pacienteId: v }))}
-                    disabled={!!editing || !form.taskId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={form.taskId ? `Selecciona un ${isPsiTask ? "psicólogo" : "paciente"}` : "Selecciona una tarea primero"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options.map(p => (
-                        <SelectItem key={p.id} value={String(p.id)}>{p.name} <span className="text-xs text-muted-foreground">{p.email}</span></SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className={`rounded-lg border p-2.5 text-xs ${isPsiTask ? "bg-violet-50 border-violet-200 text-violet-800" : "bg-teal-50 border-teal-200 text-teal-800"}`}>
+                    {isPsiTask ? (
+                      <>
+                        <strong>Tarea para psicólogos.</strong> El destinatario debe ser un psicólogo y la tarea aparecerá en su portal.{" "}
+                        <span className="text-violet-700">No se mostrará en el portal del paciente.</span>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Tarea para pacientes.</strong> El destinatario debe ser un paciente y la tarea aparecerá en su portal para que la complete.
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-xs">{isPsiTask ? "Psicólogo destinatario" : "Paciente destinatario"}</Label>
+                    <Select
+                      value={form.pacienteId}
+                      onValueChange={(v) => setForm(f => ({ ...f, pacienteId: v }))}
+                      disabled={!!editing}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Selecciona un ${isPsiTask ? "psicólogo" : "paciente"}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map(p => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name} <span className="text-xs text-muted-foreground">{p.email}</span></SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!isPsiTask && (
+                    <div>
+                      <Label className="text-xs">Psicólogo a cargo (opcional)</Label>
+                      <Select
+                        value={form.psicologoId || "__none__"}
+                        onValueChange={(v) => setForm(f => ({ ...f, psicologoId: v === "__none__" ? "" : v }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Sin psicólogo asignado" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin psicólogo</SelectItem>
+                          {psicologos.map(p => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
               );
             })()}
-
-            <div>
-              <Label className="text-xs">Psicólogo (opcional)</Label>
-              <Select
-                value={form.psicologoId || "__none__"}
-                onValueChange={(v) => setForm(f => ({ ...f, psicologoId: v === "__none__" ? "" : v }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Sin psicólogo asignado" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin psicólogo</SelectItem>
-                  {psicologos.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
