@@ -662,6 +662,62 @@ export async function runMigrations() {
       await client.query(`ALTER TABLE patient_profiles DROP COLUMN IF EXISTS costo_terapia`);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 17 (drop costo_terapia) skipped"); }
 
+    // ── PHASE 18: Línea de Vida (paciente, repetible) ─────────────────────
+    // Tabla de registros + nueva tarea en el catálogo + backfill de
+    // asignaciones para cada paciente existente.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS linea_vida_records (
+          id                       SERIAL PRIMARY KEY,
+          paciente_id              INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id            INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          presente_circunstancias  TEXT,
+          reflexion_patrones       TEXT,
+          fortalezas_vitales       TEXT,
+          aprendizajes_generales   TEXT,
+          eventos                  JSONB NOT NULL DEFAULT '[]'::jsonb,
+          data                     JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at               TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at               TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS linea_vida_records_paciente_idx ON linea_vida_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS linea_vida_records_assignment_idx ON linea_vida_records (assignment_id)`);
+
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('linea-de-vida', 'Línea de Vida',
+           'Construye una línea temporal con los acontecimientos vitales más significativos de tu vida y reflexiona sobre los patrones, aprendizajes y emociones asociadas.',
+           'Activity', 'from-violet-500 to-fuchsia-600',
+           'bg-violet-100 text-violet-700', '/linea-de-vida', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'linea-de-vida'
+      `);
+      await client.query(`
+        WITH t AS (
+          SELECT id FROM therapeutic_tasks
+           WHERE key = 'linea-de-vida'
+        )
+        INSERT INTO task_assignments
+          (task_id, paciente_id, assigned_by_id, status,
+           assigned_at, started_at, completed_at, notes)
+        SELECT t.id, u.id, NULL, 'pendiente', NOW(), NULL, NULL,
+               'Asignación masiva inicial.'
+          FROM users u CROSS JOIN t
+         WHERE u.role = 'user'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_assignments ta
+              WHERE ta.task_id = t.id AND ta.paciente_id = u.id
+           )
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 18 (línea de vida) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

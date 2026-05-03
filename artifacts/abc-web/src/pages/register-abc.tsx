@@ -31,6 +31,7 @@ import PrimeraConsultaNinosForm from "@/components/PrimeraConsultaNinosForm";
 import DesarrolloSesionForm from "@/components/DesarrolloSesionForm";
 import ConsultaPsicologicaForm from "@/components/ConsultaPsicologicaForm";
 import PlanIntervencionForm from "@/components/PlanIntervencionForm";
+import LineaVidaForm from "@/components/LineaVidaForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -80,7 +81,7 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
@@ -88,6 +89,7 @@ export default function RegisterAbc() {
   const [activeDesarrolloSesionPacAssignment, setActiveDesarrolloSesionPacAssignment] = useState<number | null>(null);
   const [activePlanIntervencionAssignment, setActivePlanIntervencionAssignment] = useState<number | null>(null);
   const [activePlanIntervencionNinosAssignment, setActivePlanIntervencionNinosAssignment] = useState<number | null>(null);
+  const [activeLineaVidaAssignment, setActiveLineaVidaAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -264,6 +266,7 @@ export default function RegisterAbc() {
         const isDesarrolloSesionPaciente = a.taskKey === 'desarrollo-sesion-paciente';
         const isPlanIntervencion = a.taskKey === 'plan-intervencion-adultos';
         const isPlanIntervencionNinos = a.taskKey === 'plan-intervencion-ninos';
+        const isLineaDeVida = a.taskKey === 'linea-de-vida';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -296,12 +299,13 @@ export default function RegisterAbc() {
             else if (isDesarrolloSesionPaciente) { setActiveDesarrolloSesionPacAssignment(a.id); setView('desarrollo-sesion-paciente'); }
             else if (isPlanIntervencion) { setActivePlanIntervencionAssignment(a.id); setView('plan-intervencion-adultos'); }
             else if (isPlanIntervencionNinos) { setActivePlanIntervencionNinosAssignment(a.id); setView('plan-intervencion-ninos'); }
+            else if (isLineaDeVida) { setActiveLineaVidaAssignment(a.id); setView('linea-de-vida'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           // Repetibles (ABC, Desarrollo Sesión, Consulta Psicológica, Desarrollo por sesión paciente
           // y Plan de intervención) no muestran el botón "Marcar completada" porque el paciente
           // puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos)
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -410,6 +414,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Plan de intervención</h1>
                 <p className="text-muted-foreground mt-1">Niños · plan de tratamiento por sesiones</p>
+              </>
+            )}
+            {view === 'linea-de-vida' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Línea de Vida</h1>
+                <p className="text-muted-foreground mt-1">Tu historia personal en una línea temporal guiada</p>
               </>
             )}
           </div>
@@ -589,6 +599,14 @@ export default function RegisterAbc() {
             assignmentId={activePlanIntervencionNinosAssignment}
             onCancel={() => { setView('dashboard'); setActivePlanIntervencionNinosAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActivePlanIntervencionNinosAssignment(null); }}
+          />
+        )}
+
+        {view === 'linea-de-vida' && (
+          <LineaVidaForm
+            assignmentId={activeLineaVidaAssignment}
+            onCancel={() => { setView('dashboard'); setActiveLineaVidaAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveLineaVidaAssignment(null); }}
           />
         )}
 

@@ -13,6 +13,7 @@ import primeraConsultaRecordsRouter from "./primeraConsultaRecords";
 import desarrolloSesionRecordsRouter from "./desarrolloSesionRecords";
 import consultaPsicologicaRecordsRouter from "./consultaPsicologicaRecords";
 import planIntervencionRecordsRouter from "./planIntervencionRecords";
+import lineaVidaRecordsRouter from "./lineaVidaRecords";
 
 const router: IRouter = Router();
 
@@ -35,5 +36,6 @@ router.use("/primera-consulta", primeraConsultaRecordsRouter);
 router.use("/desarrollo-sesion", desarrolloSesionRecordsRouter);
 router.use("/consulta-psicologica", consultaPsicologicaRecordsRouter);
 router.use("/plan-intervencion", planIntervencionRecordsRouter);
+router.use("/linea-vida", lineaVidaRecordsRouter);
 
 export default router;

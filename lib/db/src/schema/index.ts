@@ -12,3 +12,4 @@ export * from "./primeraConsultaRecords";
 export * from "./desarrolloSesionRecords";
 export * from "./consultaPsicologicaRecords";
 export * from "./planIntervencionRecords";
+export * from "./lineaVidaRecords";
