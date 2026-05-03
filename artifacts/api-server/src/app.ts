@@ -6,6 +6,12 @@ import jwt from "jsonwebtoken";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET environment variable is required in production");
+}
+const TOKEN_SECRET: string =
+  process.env.SESSION_SECRET ?? "abc-tcc-dev-secret-do-not-use-in-prod";
+
 const app: Express = express();
 
 app.use(
@@ -40,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: TOKEN_SECRET ?? "abc-tcc-dev-secret-do-not-use-in-prod",
+    secret: TOKEN_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -51,15 +57,10 @@ app.use(
   }),
 );
 
-const TOKEN_SECRET = process.env.SESSION_SECRET;
-if (!TOKEN_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("SESSION_SECRET environment variable is required in production");
-}
-
 app.use((req: any, _res, next) => {
   if (req.session?.userId) return next();
   const auth = req.headers["authorization"];
-  if (typeof auth === "string" && auth.startsWith("Bearer ") && TOKEN_SECRET) {
+  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
     const token = auth.slice(7);
     try {
       const payload = jwt.verify(token, TOKEN_SECRET) as { userId?: number };

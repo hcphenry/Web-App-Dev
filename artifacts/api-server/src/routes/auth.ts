@@ -8,10 +8,11 @@ import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
-const TOKEN_SECRET = process.env.SESSION_SECRET;
-if (!TOKEN_SECRET && process.env.NODE_ENV === "production") {
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
   throw new Error("SESSION_SECRET environment variable is required in production");
 }
+const TOKEN_SECRET: string =
+  process.env.SESSION_SECRET ?? "abc-tcc-dev-secret-do-not-use-in-prod";
 
 router.post("/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
@@ -57,9 +58,7 @@ router.post("/login", async (req, res) => {
     },
   });
 
-  const token = TOKEN_SECRET
-    ? jwt.sign({ userId: user.id }, TOKEN_SECRET, { expiresIn: "7d" })
-    : null;
+  const token = jwt.sign({ userId: user.id }, TOKEN_SECRET, { expiresIn: "7d" });
 
   res.json({ ...response, token });
 });
