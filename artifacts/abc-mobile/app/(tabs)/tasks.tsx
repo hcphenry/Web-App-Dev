@@ -84,7 +84,7 @@ export default function TasksScreen() {
 
     return (
       <Pressable
-        onPress={() => router.push(`/abc-form?assignmentId=${item.id}`)}
+        onPress={() => router.push({ pathname: "/abc-form", params: { assignmentId: String(item.id) } })}
         style={({ pressed }) => [
           styles.card,
           {

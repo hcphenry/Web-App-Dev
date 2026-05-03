@@ -26,7 +26,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#f7fafa" } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
-      <Stack.Screen name="tasks" />
+      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="abc-form" options={{ presentation: "card" }} />
     </Stack>
   );

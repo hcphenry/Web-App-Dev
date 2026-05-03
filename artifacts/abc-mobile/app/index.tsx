@@ -18,7 +18,7 @@ export default function Index() {
   }
 
   if (token && user) {
-    return <Redirect href="/tasks" />;
+    return <Redirect href="/(tabs)/tasks" />;
   }
 
   return <Redirect href="/login" />;

@@ -78,6 +78,12 @@ artifacts-monorepo/
 - 3 views: form, history, account
 - **Mi Cuenta** now includes full clinical profile form (apellidos, fecha nacimiento, sexo, documento, celular, estado, dirección, perioricidad, fecha alta) plus email/password change
 
+### Mobile App (`abc-mobile`, Expo)
+- Patient-only login (rejects admin / psicólogo). JWT stored in AsyncStorage; backend Bearer middleware in `app.ts` injects `req.session.userId` so existing session-guarded routes work unchanged for the web.
+- Bottom tabs `(tabs)`:
+  - **Tareas** — assigned `registro-abc` tasks → opens 5-section ABC form (A situación, B pensamientos, C emoción + intensidad 1–10, D conducta, E reflexión).
+  - **Agenda** — list of own sessions grouped Próximas / Anteriores with date, hour, psicólogo, payment status badge, monto.
+
 ## Database Schema
 
 - **users**: id, name, email, password_hash, role (admin|user|psicologo), created_at
@@ -151,6 +157,7 @@ All routes under `/api`:
 - `GET /api/tareas/catalog`, `POST/PATCH /api/tareas/catalog/:id` — Task catalog (admin manages); includes `targetRole`
 - `GET /api/tareas/assignments`, `POST /api/tareas/assignments` — Admin assigns a task; backend rejects if assignee.role does not match task.targetRole
 - `GET /api/tareas/mine` + `POST /api/tareas/mine/:id/{start,complete}` — Patient's own assigned tasks (role=user)
+- `GET /api/agenda/mis-sesiones` — Patient sees their own scheduled/past sessions with psychologist info (role=user only). Used by the mobile Agenda tab.
 - `GET /api/tareas/mine-psi` + `POST /api/tareas/mine-psi/:id/{start,complete}` — Psicólogo's own assigned tasks (role=psicologo, `requirePsicologo` middleware)
 
 ## TypeScript & Composite Projects

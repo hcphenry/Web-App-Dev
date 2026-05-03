@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const onSubmit = async () => {
     if (!email.trim() || !password) return;
     const ok = await signIn(email.trim().toLowerCase(), password);
-    if (ok) router.replace("/tasks");
+    if (ok) router.replace("/(tabs)/tasks");
   };
 
   return (

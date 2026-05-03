@@ -168,6 +168,38 @@ router.delete("/tarifas/:pacienteId", requireAdmin, async (req: any, res) => {
 
 // ─── SESIONES CONTABLES ───────────────────────────────────────────────────
 
+// GET /api/agenda/mis-sesiones — patient sees their own scheduled sessions
+router.get("/mis-sesiones", async (req: any, res) => {
+  const userId = req.session?.userId;
+  if (!userId) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+  if (req.session.userRole !== "user") {
+    res.status(403).json({ error: "Solo pacientes" });
+    return;
+  }
+  const rows = await db
+    .select({
+      id: sesionesContabilidadTable.id,
+      fechaSesion: sesionesContabilidadTable.fechaSesion,
+      montoCobrado: sesionesContabilidadTable.montoCobrado,
+      moneda: sesionesContabilidadTable.moneda,
+      estadoPago: sesionesContabilidadTable.estadoPago,
+      fechaPago: sesionesContabilidadTable.fechaPago,
+      metodoPago: sesionesContabilidadTable.metodoPago,
+      notas: sesionesContabilidadTable.notas,
+      psicologoId: sesionesContabilidadTable.psicologoId,
+      psicologoNombre: usersTable.name,
+      psicologoEmail: usersTable.email,
+    })
+    .from(sesionesContabilidadTable)
+    .innerJoin(usersTable, eq(usersTable.id, sesionesContabilidadTable.psicologoId))
+    .where(eq(sesionesContabilidadTable.pacienteId, userId))
+    .orderBy(desc(sesionesContabilidadTable.fechaSesion));
+  res.json(rows);
+});
+
 // GET /api/contabilidad/sesiones — with filters
 router.get("/sesiones", requireAdmin, async (req, res) => {
   const { estado, pacienteId, psicologoId, from, to, search } = req.query as Record<string, string>;
