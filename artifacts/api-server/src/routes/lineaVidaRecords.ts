@@ -132,13 +132,88 @@ router.post("/mine", requirePaciente, async (req: any, res) => {
   res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
 });
 
+// PATCH /api/linea-vida/:id — paciente owner edits an existing record
+// Permite modificar eventos (agregar/eliminar/editar), reflexiones y
+// el bloque del presente sin tener que crear una versión nueva.
+router.patch("/:id", requirePaciente, async (req: any, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const [existing] = await db.select().from(lineaVidaRecordsTable)
+    .where(eq(lineaVidaRecordsTable.id, id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "No encontrado" }); return; }
+  if (existing.pacienteId !== req.session.userId) {
+    res.status(403).json({ error: "Solo puedes modificar tu propia línea de vida" }); return;
+  }
+
+  const b = req.body ?? {};
+  const pickStr = (v: unknown) => (typeof v === "string" ? v : null);
+
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (Array.isArray(b.eventos)) {
+    const eventos = b.eventos.filter((e: any) => e && typeof e === "object");
+    if (eventos.length === 0) {
+      res.status(400).json({ error: "Tu línea de vida debe tener al menos un evento" });
+      return;
+    }
+    update.eventos = eventos as any;
+  }
+  if (b.presenteCircunstancias !== undefined) update.presenteCircunstancias = pickStr(b.presenteCircunstancias);
+  if (b.reflexionPatrones !== undefined)      update.reflexionPatrones = pickStr(b.reflexionPatrones);
+  if (b.fortalezasVitales !== undefined)      update.fortalezasVitales = pickStr(b.fortalezasVitales);
+  if (b.aprendizajesGenerales !== undefined)  update.aprendizajesGenerales = pickStr(b.aprendizajesGenerales);
+  if (b.data && typeof b.data === "object")   update.data = b.data;
+
+  const [row] = await db.update(lineaVidaRecordsTable)
+    .set(update as any)
+    .where(eq(lineaVidaRecordsTable.id, id))
+    .returning();
+
+  await logAudit({
+    actorId: req.session.userId,
+    actorName: null,
+    action: "UPDATE_LINEA_VIDA",
+    targetTable: "linea_vida_records",
+    targetId: row.id,
+    ipAddress: getIp(req),
+    details: { eventos: Array.isArray(update.eventos) ? (update.eventos as unknown[]).length : undefined },
+  });
+
+  res.json({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  });
+});
+
 // GET /api/linea-vida — admin/psicologo list (optional ?pacienteId)
-router.get("/", requireAdminOrPsi, async (req, res) => {
+// El psicólogo solo ve registros de pacientes que tiene asignados (es el
+// psicólogo supervisor o quien creó la asignación de Línea de Vida).
+router.get("/", requireAdminOrPsi, async (req: any, res) => {
   const pacienteId = req.query.pacienteId ? Number(req.query.pacienteId) : null;
   const filters: any[] = [];
   if (pacienteId !== null && Number.isInteger(pacienteId)) {
     filters.push(eq(lineaVidaRecordsTable.pacienteId, pacienteId));
   }
+
+  if (req.session.userRole === "psicologo") {
+    const psiId = req.session.userId as number;
+    const rows = await db.select({
+      pid: taskAssignmentsTable.pacienteId,
+      psi: taskAssignmentsTable.psicologoId,
+      ab: taskAssignmentsTable.assignedById,
+    })
+      .from(taskAssignmentsTable)
+      .innerJoin(therapeuticTasksTable, eq(therapeuticTasksTable.id, taskAssignmentsTable.taskId))
+      .where(eq(therapeuticTasksTable.key, "linea-de-vida"));
+    const allowedIds = Array.from(new Set(
+      rows.filter(r => r.psi === psiId || r.ab === psiId).map(r => r.pid)
+    ));
+    if (allowedIds.length === 0) { res.json([]); return; }
+    filters.push(inArray(lineaVidaRecordsTable.pacienteId, allowedIds));
+  }
+
   const rows = await db.select().from(lineaVidaRecordsTable)
     .where(filters.length ? and(...filters) : undefined as any)
     .orderBy(desc(lineaVidaRecordsTable.createdAt));
@@ -159,7 +234,8 @@ router.get("/", requireAdminOrPsi, async (req, res) => {
   })));
 });
 
-// GET /api/linea-vida/:id — admin/psi/owner can read
+// GET /api/linea-vida/:id — admin/psi/owner can read.
+// Para psicólogo, valida que el paciente esté entre los que supervisa.
 router.get("/:id", requireAuth, async (req: any, res) => {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "ID inválido" }); return; }
@@ -167,7 +243,21 @@ router.get("/:id", requireAuth, async (req: any, res) => {
     .where(eq(lineaVidaRecordsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "No encontrado" }); return; }
   const role = req.session.userRole;
-  if (role !== "admin" && role !== "psicologo" && row.pacienteId !== req.session.userId) {
+  if (role === "admin") {
+    // ok
+  } else if (role === "psicologo") {
+    const rels = await db.select({
+      psi: taskAssignmentsTable.psicologoId,
+      ab: taskAssignmentsTable.assignedById,
+    }).from(taskAssignmentsTable)
+      .innerJoin(therapeuticTasksTable, eq(therapeuticTasksTable.id, taskAssignmentsTable.taskId))
+      .where(and(
+        eq(therapeuticTasksTable.key, "linea-de-vida"),
+        eq(taskAssignmentsTable.pacienteId, row.pacienteId),
+      ));
+    const isSupervisor = rels.some(r => r.psi === req.session.userId || r.ab === req.session.userId);
+    if (!isSupervisor) { res.status(403).json({ error: "Acceso denegado" }); return; }
+  } else if (row.pacienteId !== req.session.userId) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

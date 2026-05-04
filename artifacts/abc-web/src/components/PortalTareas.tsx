@@ -21,8 +21,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ClipboardList, Plus, Pencil, Trash2, CheckCircle2, AlertCircle,
   Clock, Loader2, Users, BrainCircuit, BarChart3, Target, ListChecks,
-  PlayCircle, XCircle, Calendar as CalendarIcon, Building2,
+  PlayCircle, XCircle, Calendar as CalendarIcon, Building2, Eye,
 } from "lucide-react";
+import LineaVidaViewer from "./LineaVidaViewer";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface TaskCatalog {
@@ -213,6 +214,7 @@ export default function PortalTareas() {
 
   // ─── Delete confirmation ────────────────────────────────────────────────
   const [delTarget, setDelTarget] = useState<Assignment | null>(null);
+  const [viewLineaVida, setViewLineaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/tareas/assignments/${id}`, { method: "DELETE" });
@@ -424,6 +426,17 @@ export default function PortalTareas() {
                         <td className="px-4 py-3">{renderStatusChip(a.status)}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex gap-1">
+                            {a.taskKey === "linea-de-vida" && (a.status === "en_progreso" || a.status === "completada") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-violet-600 hover:text-violet-700"
+                                onClick={() => setViewLineaVida({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
+                                title="Ver línea de vida"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(a)} title="Editar">
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -775,6 +788,15 @@ export default function PortalTareas() {
       </Dialog>
 
       {/* ── Delete confirmation ── */}
+      {viewLineaVida && (
+        <LineaVidaViewer
+          pacienteId={viewLineaVida.pacienteId}
+          pacienteName={viewLineaVida.pacienteName}
+          open={!!viewLineaVida}
+          onClose={() => setViewLineaVida(null)}
+        />
+      )}
+
       <AlertDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

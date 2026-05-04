@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,6 +95,43 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Evento>(newEvento());
   const [saving, setSaving] = useState(false);
+  const [existingRecordId, setExistingRecordId] = useState<number | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(true);
+  const [recordCreatedAt, setRecordCreatedAt] = useState<string | null>(null);
+
+  // Cargar la última línea de vida del paciente. Si existe, hidrata el form
+  // en modo edición — el paciente puede agregar/editar/borrar eventos y
+  // guardar los cambios en el mismo registro (no se crea uno nuevo).
+  useEffect(() => {
+    let active = true;
+    setLoadingExisting(true);
+    fetch("/api/linea-vida/mine", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        if (!active || !Array.isArray(rows) || rows.length === 0) return;
+        const latest = rows[0];
+        setExistingRecordId(latest.id);
+        setRecordCreatedAt(latest.createdAt ?? null);
+        setPresenteCircunstancias(latest.presenteCircunstancias ?? "");
+        setReflexionPatrones(latest.reflexionPatrones ?? "");
+        setFortalezasVitales(latest.fortalezasVitales ?? "");
+        setAprendizajesGenerales(latest.aprendizajesGenerales ?? "");
+        if (Array.isArray(latest.eventos)) {
+          setEventos(latest.eventos.map((e: any) => ({
+            id: typeof e.id === "string" ? e.id : Math.random().toString(36).slice(2),
+            edad: String(e.edad ?? ""),
+            titulo: String(e.titulo ?? ""),
+            descripcion: String(e.descripcion ?? ""),
+            tipo: (["positivo","negativo","neutral"].includes(e.tipo) ? e.tipo : "neutral") as Tipo,
+            emocion: String(e.emocion ?? ""),
+            aprendizaje: String(e.aprendizaje ?? ""),
+          })));
+        }
+      })
+      .catch(() => { /* noop, comienza vacío */ })
+      .finally(() => { if (active) setLoadingExisting(false); });
+    return () => { active = false; };
+  }, []);
 
   const sortedEventos = useMemo(() => {
     return [...eventos].sort((a, b) => {
@@ -176,24 +213,36 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/linea-vida/mine", {
-        method: "POST",
+      const isEdit = existingRecordId !== null;
+      const url = isEdit
+        ? `/api/linea-vida/${existingRecordId}`
+        : "/api/linea-vida/mine";
+      const body: Record<string, unknown> = {
+        presenteCircunstancias,
+        reflexionPatrones,
+        fortalezasVitales,
+        aprendizajesGenerales,
+        eventos: sortedEventos,
+      };
+      if (!isEdit) body.assignmentId = assignmentId ?? null;
+      const res = await fetch(url, {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          assignmentId: assignmentId ?? null,
-          presenteCircunstancias,
-          reflexionPatrones,
-          fortalezasVitales,
-          aprendizajesGenerales,
-          eventos: sortedEventos,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || "No se pudo guardar tu línea de vida");
       }
-      toast({ title: "¡Línea de vida guardada!", description: "Tu psicólogo podrá revisarla contigo." });
+      const saved = await res.json().catch(() => null);
+      if (saved?.id && !isEdit) setExistingRecordId(saved.id);
+      toast({
+        title: isEdit ? "Cambios guardados" : "¡Línea de vida guardada!",
+        description: isEdit
+          ? "Tu línea de vida fue actualizada."
+          : "Tu psicólogo podrá revisarla contigo.",
+      });
       qc.invalidateQueries({ queryKey: ["mine-tasks"] });
       onSaved();
     } catch (e: any) {
@@ -223,6 +272,17 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
             <p className="text-sm font-medium text-violet-700 uppercase tracking-wider">Tarea terapéutica</p>
             <h2 className="text-xl font-display font-semibold text-foreground">Línea de Vida</h2>
             <p className="text-sm text-muted-foreground">Una herramienta para mirar tu historia con perspectiva y descubrir patrones, fortalezas y aprendizajes.</p>
+            {existingRecordId !== null && !loadingExisting && (
+              <div className="mt-2 inline-flex items-center gap-2 text-[11px] font-medium text-violet-700 bg-white/70 border border-violet-200 px-2.5 py-1 rounded-full">
+                <Pencil className="w-3 h-3" />
+                Estás editando tu línea de vida{recordCreatedAt ? ` creada el ${new Date(recordCreatedAt).toLocaleDateString("es-PE")}` : ""}. Tus cambios se guardarán sobre la misma versión.
+              </div>
+            )}
+            {loadingExisting && (
+              <div className="mt-2 inline-flex items-center gap-2 text-[11px] text-slate-500">
+                <Loader2 className="w-3 h-3 animate-spin" /> Cargando tu línea de vida…
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -670,12 +730,12 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
           ) : (
             <Button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || loadingExisting}
               data-testid="btn-save-linea-vida"
               className="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white"
             >
               {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
-              Guardar línea de vida
+              {existingRecordId !== null ? "Guardar cambios" : "Guardar línea de vida"}
             </Button>
           )}
         </div>
