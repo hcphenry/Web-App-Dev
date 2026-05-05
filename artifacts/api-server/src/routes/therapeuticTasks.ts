@@ -4,8 +4,9 @@ import {
   usersTable,
   therapeuticTasksTable,
   taskAssignmentsTable,
+  patientProfilesTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray, ilike } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -141,7 +142,32 @@ router.patch("/catalog/:id", requireAdmin, async (req: any, res) => {
 
 // ─── LOOKUPS (pacientes / psicólogos para selects) ────────────────────────
 
-router.get("/lookup/pacientes", requireAdminOrPsi, async (_req, res) => {
+// Escape LIKE/ILIKE wildcards in untrusted text used for *exact* (case-insensitive) match.
+// Without this, a psicólogo whose name contains "%" or "_" could match patients
+// assigned to other psicólogos.
+const escapeLike = (s: string) => s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+
+router.get("/lookup/pacientes", requireAdminOrPsi, async (req: any, res) => {
+  // Psicólogo: only their own assigned patients (matched by name in patient_profiles.psicologa_asignada)
+  if (req.session.userRole === "psicologo") {
+    const [actor] = await db.select({ name: usersTable.name })
+      .from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
+    if (!actor) { res.json([]); return; }
+    const rows = await db.select({
+      id: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+    })
+      .from(patientProfilesTable)
+      .innerJoin(usersTable, eq(usersTable.id, patientProfilesTable.userId))
+      .where(and(
+        eq(usersTable.role, "user"),
+        ilike(patientProfilesTable.psicologaAsignada, escapeLike(actor.name)),
+      ))
+      .orderBy(usersTable.name);
+    res.json(rows);
+    return;
+  }
   const rows = await db.select({
     id: usersTable.id,
     name: usersTable.name,
@@ -149,6 +175,21 @@ router.get("/lookup/pacientes", requireAdminOrPsi, async (_req, res) => {
   }).from(usersTable).where(eq(usersTable.role, "user")).orderBy(usersTable.name);
   res.json(rows);
 });
+
+// Helper: verify pacienteId is a patient assigned to the calling psicólogo (by name match)
+async function isMyPatient(psiUserId: number, pacienteUserId: number): Promise<boolean> {
+  const [actor] = await db.select({ name: usersTable.name })
+    .from(usersTable).where(eq(usersTable.id, psiUserId)).limit(1);
+  if (!actor) return false;
+  const [row] = await db.select({ id: patientProfilesTable.id })
+    .from(patientProfilesTable)
+    .where(and(
+      eq(patientProfilesTable.userId, pacienteUserId),
+      ilike(patientProfilesTable.psicologaAsignada, escapeLike(actor.name)),
+    ))
+    .limit(1);
+  return !!row;
+}
 
 router.get("/lookup/psicologos", requireAdminOrPsi, async (_req, res) => {
   const rows = await db.select({
@@ -265,6 +306,23 @@ router.post("/assignments", requireAdminOrPsi, async (req: any, res) => {
     return;
   }
 
+  // Psicólogo restrictions: can only assign to own patients (paciente-target)
+  // or to themselves (psicologo-target).
+  if (req.session.userRole === "psicologo") {
+    if (task.targetRole === "psicologo") {
+      if (pid !== req.session.userId) {
+        res.status(403).json({ error: "Como psicólogo solo puedes asignarte a ti mismo las tareas para psicólogo." });
+        return;
+      }
+    } else {
+      const ok = await isMyPatient(req.session.userId, pid);
+      if (!ok) {
+        res.status(403).json({ error: "Solo puedes asignar tareas a tus pacientes." });
+        return;
+      }
+    }
+  }
+
   let psiId: number | null = null;
   if (psicologoId !== undefined && psicologoId !== null && psicologoId !== "") {
     const v = Number(psicologoId);
@@ -379,10 +437,37 @@ router.patch("/assignments/:id", requireAdminOrPsi, async (req: any, res) => {
   });
 });
 
-// DELETE /api/tareas/assignments/:id — admin only
-router.delete("/assignments/:id", requireAdmin, async (req: any, res) => {
+// DELETE /api/tareas/assignments/:id — admin or owning psicólogo
+router.delete("/assignments/:id", requireAdminOrPsi, async (req: any, res) => {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  if (req.session.userRole === "psicologo") {
+    const [existing] = await db.select({
+      id: taskAssignmentsTable.id,
+      pacienteId: taskAssignmentsTable.pacienteId,
+      psicologoId: taskAssignmentsTable.psicologoId,
+      assignedById: taskAssignmentsTable.assignedById,
+      targetRole: therapeuticTasksTable.targetRole,
+    })
+      .from(taskAssignmentsTable)
+      .innerJoin(therapeuticTasksTable, eq(therapeuticTasksTable.id, taskAssignmentsTable.taskId))
+      .where(eq(taskAssignmentsTable.id, id))
+      .limit(1);
+    if (!existing) { res.status(404).json({ error: "No encontrado" }); return; }
+    // Same predicate as POST: psi-target → assignee must be self; paciente-target → patient must belong to me.
+    let allowed = false;
+    if (existing.targetRole === "psicologo") {
+      allowed = existing.pacienteId === req.session.userId
+        || existing.psicologoId === req.session.userId
+        || existing.assignedById === req.session.userId;
+    } else {
+      allowed = await isMyPatient(req.session.userId, existing.pacienteId);
+    }
+    if (!allowed) {
+      res.status(403).json({ error: "Solo puedes eliminar asignaciones de tus pacientes." });
+      return;
+    }
+  }
   const result = await db.delete(taskAssignmentsTable).where(eq(taskAssignmentsTable.id, id)).returning();
   if (!result.length) { res.status(404).json({ error: "No encontrado" }); return; }
   await logAudit({

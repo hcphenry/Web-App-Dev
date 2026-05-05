@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight, Activity, ClipboardList } from "lucide-react";
 import DesarrolloSesionForm from "@/components/DesarrolloSesionForm";
+import PortalTareas from "@/components/PortalTareas";
 
 // ── Lima/GMT-5 helpers — pure UTC arithmetic, browser-timezone-independent ──
 // Lima is always UTC-5, no DST. Subtract 5h, then read with getUTC* methods.
@@ -376,7 +377,7 @@ export default function PsicologoDashboard() {
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full max-w-3xl grid-cols-4 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
+          <TabsList className="grid w-full max-w-4xl grid-cols-5 p-1 bg-white/50 border backdrop-blur-md rounded-xl h-auto mb-6">
             <TabsTrigger value="profile" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Perfil
             </TabsTrigger>
@@ -385,6 +386,9 @@ export default function PsicologoDashboard() {
             </TabsTrigger>
             <TabsTrigger value="patients" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Users className="w-4 h-4 mr-2" /> Mis Pacientes
+            </TabsTrigger>
+            <TabsTrigger value="tareas" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ClipboardList className="w-4 h-4 mr-2" /> Tareas
             </TabsTrigger>
             <TabsTrigger value="account" className="rounded-lg py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UserCircle className="w-4 h-4 mr-2" /> Mi Cuenta
@@ -442,6 +446,11 @@ export default function PsicologoDashboard() {
             ) : (
               <div className="text-center py-16 text-muted-foreground">No se pudo cargar el perfil.</div>
             )}
+          </TabsContent>
+
+          {/* ── TAREAS ── */}
+          <TabsContent value="tareas">
+            <PortalTareas mode="psicologo" />
           </TabsContent>
 
           {/* ── DISPONIBILIDAD ── */}

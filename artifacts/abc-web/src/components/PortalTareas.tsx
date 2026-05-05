@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,9 +85,16 @@ const toLocalInput = (d: Date) => {
 };
 
 // ─── Main component ──────────────────────────────────────────────────────
-export default function PortalTareas() {
+interface PortalTareasProps {
+  /** "admin" (default) shows everything. "psicologo" hides catálogo, reportes y filtro de psicólogo. */
+  mode?: "admin" | "psicologo";
+}
+
+export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
+  const isPsi = mode === "psicologo";
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), enabled: isPsi } });
 
   const [tab, setTab] = useState<"asignaciones" | "reportes" | "catalogo">("asignaciones");
   const [filterPaciente, setFilterPaciente] = useState("all");
@@ -106,6 +114,7 @@ export default function PortalTareas() {
   const psicologosQ = useQuery<Psicologo[]>({
     queryKey: ["tareas", "lookup", "psicologos"],
     queryFn: async () => (await fetch("/api/tareas/lookup/psicologos")).json(),
+    enabled: !isPsi, // psi mode doesn't need the full psi list
   });
 
   const assignmentsParams = useMemo(() => {
@@ -125,17 +134,17 @@ export default function PortalTareas() {
   const reportPacQ = useQuery<ReportePaciente[]>({
     queryKey: ["tareas", "reports", "by-paciente"],
     queryFn: async () => (await fetch("/api/tareas/reports/by-paciente")).json(),
-    enabled: tab === "reportes",
+    enabled: !isPsi && tab === "reportes",
   });
   const reportPsiQ = useQuery<ReportePsicologo[]>({
     queryKey: ["tareas", "reports", "by-psicologo"],
     queryFn: async () => (await fetch("/api/tareas/reports/by-psicologo")).json(),
-    enabled: tab === "reportes",
+    enabled: !isPsi && tab === "reportes",
   });
   const reportCenQ = useQuery<ReporteCentro>({
     queryKey: ["tareas", "reports", "centro"],
     queryFn: async () => (await fetch("/api/tareas/reports/centro")).json(),
-    enabled: tab === "reportes",
+    enabled: !isPsi && tab === "reportes",
   });
 
   const catalog = catalogQ.data ?? [];
@@ -293,7 +302,11 @@ export default function PortalTareas() {
             <ClipboardList className="w-6 h-6 text-teal-600" />
             <div>
               <h2 className="text-xl font-display font-semibold text-foreground">Portal Tareas Terapéuticas</h2>
-              <p className="text-xs text-muted-foreground">Asigna tareas del catálogo a tus pacientes y monitorea su progreso.</p>
+              <p className="text-xs text-muted-foreground">
+                {isPsi
+                  ? "Asigna tareas del catálogo a tus pacientes y dales seguimiento."
+                  : "Asigna tareas del catálogo a tus pacientes y monitorea su progreso."}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -304,7 +317,7 @@ export default function PortalTareas() {
         </div>
 
         {/* Toolbar filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+        <div className={`grid grid-cols-2 ${isPsi ? "md:grid-cols-3" : "md:grid-cols-4"} gap-2 mt-4`}>
           <Select value={filterPaciente} onValueChange={setFilterPaciente}>
             <SelectTrigger className="rounded-full bg-white"><SelectValue placeholder="Paciente" /></SelectTrigger>
             <SelectContent>
@@ -312,13 +325,15 @@ export default function PortalTareas() {
               {pacientes.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterPsicologo} onValueChange={setFilterPsicologo}>
-            <SelectTrigger className="rounded-full bg-white"><SelectValue placeholder="Psicólogo" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los psicólogos</SelectItem>
-              {psicologos.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {!isPsi && (
+            <Select value={filterPsicologo} onValueChange={setFilterPsicologo}>
+              <SelectTrigger className="rounded-full bg-white"><SelectValue placeholder="Psicólogo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los psicólogos</SelectItem>
+                {psicologos.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={filterTask} onValueChange={setFilterTask}>
             <SelectTrigger className="rounded-full bg-white"><SelectValue placeholder="Tarea" /></SelectTrigger>
             <SelectContent>
@@ -367,12 +382,16 @@ export default function PortalTareas() {
           <TabsTrigger value="asignaciones" className="rounded-lg data-[state=active]:bg-white">
             <ListChecks className="w-4 h-4 mr-1.5" /> Asignaciones
           </TabsTrigger>
-          <TabsTrigger value="reportes" className="rounded-lg data-[state=active]:bg-white">
-            <BarChart3 className="w-4 h-4 mr-1.5" /> Reportes
-          </TabsTrigger>
-          <TabsTrigger value="catalogo" className="rounded-lg data-[state=active]:bg-white">
-            <ClipboardList className="w-4 h-4 mr-1.5" /> Catálogo
-          </TabsTrigger>
+          {!isPsi && (
+            <>
+              <TabsTrigger value="reportes" className="rounded-lg data-[state=active]:bg-white">
+                <BarChart3 className="w-4 h-4 mr-1.5" /> Reportes
+              </TabsTrigger>
+              <TabsTrigger value="catalogo" className="rounded-lg data-[state=active]:bg-white">
+                <ClipboardList className="w-4 h-4 mr-1.5" /> Catálogo
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         {/* ── ASIGNACIONES TAB ── */}
@@ -662,7 +681,12 @@ export default function PortalTareas() {
               <Label className="text-xs">Tarea</Label>
               <Select
                 value={form.taskId}
-                onValueChange={(v) => setForm(f => ({ ...f, taskId: v, pacienteId: "" }))}
+                onValueChange={(v) => {
+                  const t = catalog.find(c => String(c.id) === v);
+                  // In psi mode + psi-target task: auto-pick self as assignee
+                  const autoPid = isPsi && t?.targetRole === "psicologo" && me?.id ? String(me.id) : "";
+                  setForm(f => ({ ...f, taskId: v, pacienteId: autoPid }));
+                }}
                 disabled={!!editing}
               >
                 <SelectTrigger><SelectValue placeholder="Selecciona una tarea" /></SelectTrigger>
@@ -686,7 +710,16 @@ export default function PortalTareas() {
               const selectedTask = catalog.find(t => String(t.id) === form.taskId);
               if (!selectedTask) return null;
               const isPsiTask = selectedTask.targetRole === "psicologo";
-              const options = isPsiTask ? psicologos : pacientes;
+              // In psi mode, psi-target tasks may only be assigned to the current psi (themselves).
+              const meOpt: { id: number; name: string; email: string } | null =
+                isPsi && isPsiTask && me?.id && me?.name
+                  ? { id: me.id, name: me.name, email: me.email ?? "" }
+                  : null;
+              const options = meOpt
+                ? [meOpt]
+                : isPsiTask
+                  ? psicologos
+                  : pacientes;
               return (
                 <>
                   <div className={`rounded-lg border p-2.5 text-xs ${isPsiTask ? "bg-violet-50 border-violet-200 text-violet-800" : "bg-teal-50 border-teal-200 text-teal-800"}`}>
@@ -719,7 +752,7 @@ export default function PortalTareas() {
                     </Select>
                   </div>
 
-                  {!isPsiTask && (
+                  {!isPsiTask && !isPsi && (
                     <div>
                       <Label className="text-xs">Psicólogo a cargo (opcional)</Label>
                       <Select
