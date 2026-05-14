@@ -14,3 +14,4 @@ export * from "./consultaPsicologicaRecords";
 export * from "./planIntervencionRecords";
 export * from "./lineaVidaRecords";
 export * from "./consentimientoInformadoRecords";
+export * from "./distorsionesRecords";

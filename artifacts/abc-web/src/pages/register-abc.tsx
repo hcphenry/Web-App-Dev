@@ -33,6 +33,7 @@ import ConsultaPsicologicaForm from "@/components/ConsultaPsicologicaForm";
 import PlanIntervencionForm from "@/components/PlanIntervencionForm";
 import LineaVidaForm from "@/components/LineaVidaForm";
 import ConsentimientoInformadoForm from "@/components/ConsentimientoInformadoForm";
+import DistorsionesRealidadForm from "@/components/DistorsionesRealidadForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -82,7 +83,7 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida' | 'consentimiento-informado'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida' | 'consentimiento-informado' | 'distorsiones-realidad'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
@@ -92,6 +93,7 @@ export default function RegisterAbc() {
   const [activePlanIntervencionNinosAssignment, setActivePlanIntervencionNinosAssignment] = useState<number | null>(null);
   const [activeLineaVidaAssignment, setActiveLineaVidaAssignment] = useState<number | null>(null);
   const [activeConsentimientoAssignment, setActiveConsentimientoAssignment] = useState<number | null>(null);
+  const [activeDistorsionesAssignment, setActiveDistorsionesAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -270,6 +272,7 @@ export default function RegisterAbc() {
         const isPlanIntervencionNinos = a.taskKey === 'plan-intervencion-ninos';
         const isLineaDeVida = a.taskKey === 'linea-de-vida';
         const isConsentimiento = a.taskKey === 'consentimiento-informado';
+        const isDistorsiones = a.taskKey === 'distorsiones-realidad';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -304,12 +307,13 @@ export default function RegisterAbc() {
             else if (isPlanIntervencionNinos) { setActivePlanIntervencionNinosAssignment(a.id); setView('plan-intervencion-ninos'); }
             else if (isLineaDeVida) { setActiveLineaVidaAssignment(a.id); setView('linea-de-vida'); }
             else if (isConsentimiento) { setActiveConsentimientoAssignment(a.id); setView('consentimiento-informado'); }
+            else if (isDistorsiones) { setActiveDistorsionesAssignment(a.id); setView('distorsiones-realidad'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           // Repetibles (ABC, Desarrollo Sesión, Consulta Psicológica, Desarrollo por sesión paciente
           // y Plan de intervención) no muestran el botón "Marcar completada" porque el paciente
           // puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida || isConsentimiento)
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida || isConsentimiento || isDistorsiones)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -430,6 +434,12 @@ export default function RegisterAbc() {
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Consentimiento Informado</h1>
                 <p className="text-muted-foreground mt-1">Tratamiento legal de tu información digital · Ley 29733 / MINSA</p>
+              </>
+            )}
+            {view === 'distorsiones-realidad' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">Distorsiones de la percepción de la realidad</h1>
+                <p className="text-muted-foreground mt-1">Identifica qué tan presentes están 10 distorsiones cognitivas en tu pensamiento</p>
               </>
             )}
           </div>
@@ -625,6 +635,14 @@ export default function RegisterAbc() {
             assignmentId={activeConsentimientoAssignment}
             onCancel={() => { setView('dashboard'); setActiveConsentimientoAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveConsentimientoAssignment(null); }}
+          />
+        )}
+
+        {view === 'distorsiones-realidad' && (
+          <DistorsionesRealidadForm
+            assignmentId={activeDistorsionesAssignment}
+            onCancel={() => { setView('dashboard'); setActiveDistorsionesAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveDistorsionesAssignment(null); }}
           />
         )}
 

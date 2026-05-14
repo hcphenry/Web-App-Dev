@@ -25,6 +25,7 @@ import {
   PlayCircle, XCircle, Calendar as CalendarIcon, Building2, Eye,
 } from "lucide-react";
 import LineaVidaViewer from "./LineaVidaViewer";
+import DistorsionesRealidadViewer from "./DistorsionesRealidadViewer";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface TaskCatalog {
@@ -224,6 +225,7 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
   // ─── Delete confirmation ────────────────────────────────────────────────
   const [delTarget, setDelTarget] = useState<Assignment | null>(null);
   const [viewLineaVida, setViewLineaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
+  const [viewDistorsiones, setViewDistorsiones] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/tareas/assignments/${id}`, { method: "DELETE" });
@@ -452,6 +454,17 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
                                 className="h-8 w-8 p-0 text-violet-600 hover:text-violet-700"
                                 onClick={() => setViewLineaVida({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
                                 title="Ver línea de vida"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {a.taskKey === "distorsiones-realidad" && (a.status === "en_progreso" || a.status === "completada") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-amber-700 hover:text-amber-800"
+                                onClick={() => setViewDistorsiones({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
+                                title="Ver registros de distorsiones"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -827,6 +840,15 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
           pacienteName={viewLineaVida.pacienteName}
           open={!!viewLineaVida}
           onClose={() => setViewLineaVida(null)}
+        />
+      )}
+
+      {viewDistorsiones && (
+        <DistorsionesRealidadViewer
+          pacienteId={viewDistorsiones.pacienteId}
+          pacienteName={viewDistorsiones.pacienteName}
+          open={!!viewDistorsiones}
+          onClose={() => setViewDistorsiones(null)}
         />
       )}
 

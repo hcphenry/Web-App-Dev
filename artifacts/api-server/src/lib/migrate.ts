@@ -673,6 +673,42 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 20 (cleanup mass assignments) skipped"); }
 
+    // ── PHASE 21: Distorsiones de la percepción de la realidad (paciente, repetible)
+    // Tarea CBT con 10 items (escala 0-100) que el paciente puede llenar
+    // múltiples veces. Edición/borrado permitidos sólo dentro de las 48 horas
+    // posteriores a la creación.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS distorsiones_records (
+          id              SERIAL PRIMARY KEY,
+          paciente_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id   INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          items           JSONB NOT NULL DEFAULT '[]'::jsonb,
+          notas           TEXT,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS distorsiones_records_paciente_idx ON distorsiones_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS distorsiones_records_assignment_idx ON distorsiones_records (assignment_id)`);
+
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('distorsiones-realidad', 'Distorsiones de la percepción de la realidad',
+           'Identifica el grado en que diferentes distorsiones cognitivas (pensamiento todo-o-nada, generalización excesiva, filtro mental, etc.) están presentes en tu pensamiento. Puede completarse muchas veces para registrar tu evolución.',
+           'BrainCircuit', 'from-amber-500 to-rose-500',
+           'bg-amber-100 text-amber-800', '/distorsiones-realidad', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'distorsiones-realidad'
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 21 (distorsiones realidad) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
