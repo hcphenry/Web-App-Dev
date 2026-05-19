@@ -709,6 +709,30 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 21 (distorsiones realidad) skipped"); }
 
+    // ── PHASE 22: Distorsiones — split del ítem 5 en lectura/anticipación.
+    // El catálogo de ítems pasó de 10 a 11. Los registros existentes (aún en
+    // desarrollo, autorizado por el cliente a borrar) son incompatibles con la
+    // nueva lista de claves, así que se vacían UNA sola vez. Usamos una tabla
+    // de marcadores idempotente para no re-borrar en cada arranque.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS migration_flags (
+          flag        TEXT PRIMARY KEY,
+          applied_at  TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      const r = await client.query<{ flag: string }>(
+        `SELECT flag FROM migration_flags WHERE flag = 'distorsiones_split_v2'`
+      );
+      if (r.rows.length === 0) {
+        await client.query(`TRUNCATE TABLE distorsiones_records RESTART IDENTITY`);
+        await client.query(
+          `INSERT INTO migration_flags (flag) VALUES ('distorsiones_split_v2') ON CONFLICT DO NOTHING`
+        );
+        logger.info("[migrate] ✓ PHASE 22: distorsiones_records vaciada (split v2)");
+      }
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 22 (distorsiones split v2) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

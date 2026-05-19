@@ -11,16 +11,17 @@ const PALETTE = {
 };
 
 const LABELS: { [k: string]: string } = {
-  "todo-o-nada": "Pensamiento del todo o nada",
-  "generalizacion-excesiva": "Generalización excesiva",
-  "filtro-mental": "Filtro mental",
-  "descalificacion-positivo": "Descalificación de lo positivo",
-  "conclusiones-precipitadas": "Conclusiones precipitadas",
-  "magnificacion-catastrofizacion": "Magnificación / Catastrofización",
-  "razonamiento-emocional": "Razonamiento emocional",
-  "los-deberias": "Los «deberías»",
-  "etiquetacion": "Etiquetación",
-  "personalizacion": "Personalización",
+  "todo-o-nada": "5.1 Pensamiento del todo o nada",
+  "generalizacion-excesiva": "5.2 Generalización excesiva",
+  "filtro-mental": "5.3 Filtro mental",
+  "descalificacion-positivo": "5.4 Descalificación de lo positivo",
+  "conclusiones-precipitadas-lectura": "5.5 Conclusiones precipitadas — Lectura del pensamiento",
+  "conclusiones-precipitadas-anticipacion": "5.6 Conclusiones precipitadas — Anticipación negativa",
+  "magnificacion-catastrofizacion": "5.7 Magnificación / Catastrofización",
+  "razonamiento-emocional": "5.8 Razonamiento emocional",
+  "los-deberias": "5.9 Los «deberías»",
+  "etiquetacion": "5.10 Etiquetación",
+  "personalizacion": "5.11 Personalización",
 };
 const ORDER = Object.keys(LABELS);
 
