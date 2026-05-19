@@ -11,7 +11,7 @@ import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
-// ── Reference catalog of the 10 distortions the patient must score ──────────
+// ── Reference catalog of the 11 distortions the patient must score ──────────
 // Stored on the server so the client cannot inject arbitrary item keys.
 const DISTORSION_KEYS = [
   "todo-o-nada",

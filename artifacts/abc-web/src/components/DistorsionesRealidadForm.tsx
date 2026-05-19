@@ -280,7 +280,7 @@ export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSav
                 Distorsiones de la percepción de la realidad
               </h2>
               <p className="text-sm mt-1" style={{ color: PALETTE.tinta + "B0" }}>
-                Una herramienta CBT para identificar qué tan presentes están 10 distorsiones cognitivas en tu pensamiento. Puedes registrarla las veces que quieras.
+                Una herramienta CBT para identificar qué tan presentes están 11 distorsiones cognitivas en tu pensamiento. Puedes registrarla las veces que quieras.
               </p>
               <div className="mt-3 inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full" style={{ background: PALETTE.azul + "55", color: PALETTE.tinta }}>
                 <ClockIcon className="w-3.5 h-3.5" />
