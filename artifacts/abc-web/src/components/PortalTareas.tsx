@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import LineaVidaViewer from "./LineaVidaViewer";
 import DistorsionesRealidadViewer from "./DistorsionesRealidadViewer";
+import CreenciasIrracionalesViewer from "./CreenciasIrracionalesViewer";
 import RuedaVidaViewer from "./RuedaVidaViewer";
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -228,6 +229,7 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
   const [viewLineaVida, setViewLineaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const [viewDistorsiones, setViewDistorsiones] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const [viewRuedaVida, setViewRuedaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
+  const [viewCreencias, setViewCreencias] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/tareas/assignments/${id}`, { method: "DELETE" });
@@ -478,6 +480,17 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
                                 className="h-8 w-8 p-0 text-teal-700 hover:text-teal-800"
                                 onClick={() => setViewRuedaVida({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
                                 title="Ver Rueda de la Vida"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {a.taskKey === "creencias-irracionales" && (a.status === "en_progreso" || a.status === "completada") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-rose-700 hover:text-rose-800"
+                                onClick={() => setViewCreencias({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
+                                title="Ver registros de creencias irracionales"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -870,6 +883,14 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
           pacienteName={viewDistorsiones.pacienteName}
           open={!!viewDistorsiones}
           onClose={() => setViewDistorsiones(null)}
+        />
+      )}
+      {viewCreencias && (
+        <CreenciasIrracionalesViewer
+          pacienteId={viewCreencias.pacienteId}
+          pacienteName={viewCreencias.pacienteName}
+          open={!!viewCreencias}
+          onClose={() => setViewCreencias(null)}
         />
       )}
 

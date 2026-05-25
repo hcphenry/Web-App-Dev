@@ -17,6 +17,7 @@ import lineaVidaRecordsRouter from "./lineaVidaRecords";
 import consentimientoInformadoRecordsRouter from "./consentimientoInformadoRecords";
 import distorsionesRecordsRouter from "./distorsionesRecords";
 import ruedaVidaRecordsRouter from "./ruedaVidaRecords";
+import creenciasIrracionalesRecordsRouter from "./creenciasIrracionalesRecords";
 
 const router: IRouter = Router();
 
@@ -43,5 +44,6 @@ router.use("/linea-vida", lineaVidaRecordsRouter);
 router.use("/consentimiento-informado", consentimientoInformadoRecordsRouter);
 router.use("/distorsiones", distorsionesRecordsRouter);
 router.use("/rueda-vida", ruedaVidaRecordsRouter);
+router.use("/creencias-irracionales", creenciasIrracionalesRecordsRouter);
 
 export default router;

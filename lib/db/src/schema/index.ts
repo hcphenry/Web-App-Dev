@@ -16,3 +16,4 @@ export * from "./lineaVidaRecords";
 export * from "./consentimientoInformadoRecords";
 export * from "./distorsionesRecords";
 export * from "./ruedaVidaRecords";
+export * from "./creenciasIrracionalesRecords";

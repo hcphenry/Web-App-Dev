@@ -785,6 +785,41 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 23 (rueda de la vida) skipped"); }
 
+    // ── PHASE 24: Creencias irracionales — tabla de registros + catálogo.
+    // Tarea repetible para pacientes (11 creencias irracionales de Ellis,
+    // cada una calificada de 0 a 100). Edición/borrado dentro de 48h.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS creencias_irracionales_records (
+          id              SERIAL PRIMARY KEY,
+          paciente_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id   INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          items           JSONB NOT NULL DEFAULT '[]'::jsonb,
+          notas           TEXT,
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS creencias_irracionales_records_paciente_idx ON creencias_irracionales_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS creencias_irracionales_records_assignment_idx ON creencias_irracionales_records (assignment_id)`);
+
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('creencias-irracionales', 'Creencias irracionales',
+           'Identifica el grado en que están presentes 11 creencias irracionales (necesidad de aprobación, autoexigencia, catastrofismo, dependencia, etc.) en tu manera de pensar. Puede completarse muchas veces para registrar tu evolución.',
+           'BrainCircuit', 'from-rose-400 to-amber-400',
+           'bg-rose-100 text-rose-800', '/creencias-irracionales', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET is_available = TRUE, is_active = TRUE, updated_at = NOW()
+         WHERE key = 'creencias-irracionales'
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 24 (creencias irracionales) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
