@@ -733,6 +733,58 @@ export async function runMigrations() {
       }
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 22 (distorsiones split v2) skipped"); }
 
+    // ── PHASE 23: La Rueda de la Vida — tabla de registros + catálogo activo.
+    // Tarea repetible: el paciente puede llenar varias veces a lo largo del
+    // tiempo y comparar la evolución. Edición/borrado dentro de 48h, en
+    // línea con el resto de tareas terapéuticas.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS rueda_vida_records (
+          id                    SERIAL PRIMARY KEY,
+          paciente_id           INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id         INT REFERENCES task_assignments(id) ON DELETE SET NULL,
+          items                 JSONB NOT NULL DEFAULT '[]'::jsonb,
+          accion_semilla_area   TEXT,
+          accion_semilla        TEXT,
+          accion_semilla_fecha  TEXT,
+          notas                 TEXT,
+          created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at            TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS rueda_vida_records_paciente_idx ON rueda_vida_records (paciente_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS rueda_vida_records_assignment_idx ON rueda_vida_records (assignment_id)`);
+
+      // El catálogo ya tenía 'rueda-vida' como "próximamente". Ahora lo
+      // activamos y refrescamos su descripción/colores en línea con las
+      // demás tareas habilitadas.
+      await client.query(`
+        UPDATE therapeutic_tasks
+           SET name = 'La Rueda de la Vida',
+               description = 'Evalúa el nivel de satisfacción en 10 áreas clave de tu vida (salud, finanzas, familia, ocio, etc.) y define una acción semilla para mejorar tu equilibrio. Puede completarse muchas veces para registrar tu evolución.',
+               icon = 'Circle',
+               color = 'from-teal-500 to-cyan-600',
+               badge_color = 'bg-teal-100 text-teal-800',
+               route_path = '/rueda-vida',
+               target_role = 'paciente',
+               is_active = TRUE,
+               is_available = TRUE,
+               updated_at = NOW()
+         WHERE key = 'rueda-vida'
+      `);
+      // Por si la fila no existía (instalaciones nuevas).
+      await client.query(`
+        INSERT INTO therapeutic_tasks
+          (key, name, description, icon, color, badge_color, route_path, target_role, is_active, is_available)
+        VALUES
+          ('rueda-vida', 'La Rueda de la Vida',
+           'Evalúa el nivel de satisfacción en 10 áreas clave de tu vida (salud, finanzas, familia, ocio, etc.) y define una acción semilla para mejorar tu equilibrio. Puede completarse muchas veces para registrar tu evolución.',
+           'Circle', 'from-teal-500 to-cyan-600',
+           'bg-teal-100 text-teal-800', '/rueda-vida', 'paciente', TRUE, TRUE)
+        ON CONFLICT (key) DO NOTHING
+      `);
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 23 (rueda de la vida) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

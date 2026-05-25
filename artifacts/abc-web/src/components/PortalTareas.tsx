@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import LineaVidaViewer from "./LineaVidaViewer";
 import DistorsionesRealidadViewer from "./DistorsionesRealidadViewer";
+import RuedaVidaViewer from "./RuedaVidaViewer";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface TaskCatalog {
@@ -226,6 +227,7 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
   const [delTarget, setDelTarget] = useState<Assignment | null>(null);
   const [viewLineaVida, setViewLineaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const [viewDistorsiones, setViewDistorsiones] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
+  const [viewRuedaVida, setViewRuedaVida] = useState<{ pacienteId: number; pacienteName: string } | null>(null);
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`/api/tareas/assignments/${id}`, { method: "DELETE" });
@@ -465,6 +467,17 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
                                 className="h-8 w-8 p-0 text-amber-700 hover:text-amber-800"
                                 onClick={() => setViewDistorsiones({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
                                 title="Ver registros de distorsiones"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {a.taskKey === "rueda-vida" && (a.status === "en_progreso" || a.status === "completada") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-teal-700 hover:text-teal-800"
+                                onClick={() => setViewRuedaVida({ pacienteId: a.pacienteId, pacienteName: a.pacienteName })}
+                                title="Ver Rueda de la Vida"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -843,6 +856,14 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
         />
       )}
 
+      {viewRuedaVida && (
+        <RuedaVidaViewer
+          pacienteId={viewRuedaVida.pacienteId}
+          pacienteName={viewRuedaVida.pacienteName}
+          open={!!viewRuedaVida}
+          onClose={() => setViewRuedaVida(null)}
+        />
+      )}
       {viewDistorsiones && (
         <DistorsionesRealidadViewer
           pacienteId={viewDistorsiones.pacienteId}

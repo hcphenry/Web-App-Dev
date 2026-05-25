@@ -15,3 +15,4 @@ export * from "./planIntervencionRecords";
 export * from "./lineaVidaRecords";
 export * from "./consentimientoInformadoRecords";
 export * from "./distorsionesRecords";
+export * from "./ruedaVidaRecords";

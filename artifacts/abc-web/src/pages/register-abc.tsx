@@ -34,6 +34,7 @@ import PlanIntervencionForm from "@/components/PlanIntervencionForm";
 import LineaVidaForm from "@/components/LineaVidaForm";
 import ConsentimientoInformadoForm from "@/components/ConsentimientoInformadoForm";
 import DistorsionesRealidadForm from "@/components/DistorsionesRealidadForm";
+import RuedaVidaForm from "@/components/RuedaVidaForm";
 
 interface MyTaskAssignment {
   id: number;
@@ -83,7 +84,7 @@ interface PatientProfile {
 
 export default function RegisterAbc() {
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida' | 'consentimiento-informado' | 'distorsiones-realidad'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'form' | 'history' | 'account' | 'anamnesis' | 'primera-consulta' | 'desarrollo-sesion' | 'consulta-psicologica-adultos' | 'desarrollo-sesion-paciente' | 'plan-intervencion-adultos' | 'plan-intervencion-ninos' | 'linea-de-vida' | 'consentimiento-informado' | 'distorsiones-realidad' | 'rueda-vida'>('dashboard');
   const [activeAnamnesisAssignment, setActiveAnamnesisAssignment] = useState<number | null>(null);
   const [activePrimeraConsultaAssignment, setActivePrimeraConsultaAssignment] = useState<number | null>(null);
   const [activeDesarrolloSesionAssignment, setActiveDesarrolloSesionAssignment] = useState<number | null>(null);
@@ -94,6 +95,7 @@ export default function RegisterAbc() {
   const [activeLineaVidaAssignment, setActiveLineaVidaAssignment] = useState<number | null>(null);
   const [activeConsentimientoAssignment, setActiveConsentimientoAssignment] = useState<number | null>(null);
   const [activeDistorsionesAssignment, setActiveDistorsionesAssignment] = useState<number | null>(null);
+  const [activeRuedaVidaAssignment, setActiveRuedaVidaAssignment] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -273,6 +275,7 @@ export default function RegisterAbc() {
         const isLineaDeVida = a.taskKey === 'linea-de-vida';
         const isConsentimiento = a.taskKey === 'consentimiento-informado';
         const isDistorsiones = a.taskKey === 'distorsiones-realidad';
+        const isRuedaVida = a.taskKey === 'rueda-vida';
         const available = a.taskIsAvailable && a.status !== 'cancelada';
         const statusLabel =
           a.status === 'completada' ? 'Completada' :
@@ -308,12 +311,13 @@ export default function RegisterAbc() {
             else if (isLineaDeVida) { setActiveLineaVidaAssignment(a.id); setView('linea-de-vida'); }
             else if (isConsentimiento) { setActiveConsentimientoAssignment(a.id); setView('consentimiento-informado'); }
             else if (isDistorsiones) { setActiveDistorsionesAssignment(a.id); setView('distorsiones-realidad'); }
+            else if (isRuedaVida) { setActiveRuedaVidaAssignment(a.id); setView('rueda-vida'); }
           },
           onViewHistory: isABC ? () => setView('history') : undefined,
           // Repetibles (ABC, Desarrollo Sesión, Consulta Psicológica, Desarrollo por sesión paciente
           // y Plan de intervención) no muestran el botón "Marcar completada" porque el paciente
           // puede registrarlas muchas veces.
-          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida || isConsentimiento || isDistorsiones)
+          onComplete: (isABC || isDesarrolloSesion || isConsultaPsicologicaAdultos || isDesarrolloSesionPaciente || isPlanIntervencion || isPlanIntervencionNinos || isLineaDeVida || isConsentimiento || isDistorsiones || isRuedaVida)
             ? undefined
             : (a.status !== 'completada' && a.status !== 'cancelada'
                 ? () => void markCompletedMut(a.id)
@@ -439,7 +443,13 @@ export default function RegisterAbc() {
             {view === 'distorsiones-realidad' && (
               <>
                 <h1 className="text-3xl font-display font-bold text-foreground">Distorsiones de la percepción de la realidad</h1>
-                <p className="text-muted-foreground mt-1">Identifica qué tan presentes están 10 distorsiones cognitivas en tu pensamiento</p>
+                <p className="text-muted-foreground mt-1">Identifica qué tan presentes están 11 distorsiones cognitivas en tu pensamiento</p>
+              </>
+            )}
+            {view === 'rueda-vida' && (
+              <>
+                <h1 className="text-3xl font-display font-bold text-foreground">La Rueda de la Vida</h1>
+                <p className="text-muted-foreground mt-1">Evalúa el equilibrio en 10 áreas clave de tu vida y define una acción semilla</p>
               </>
             )}
           </div>
@@ -643,6 +653,14 @@ export default function RegisterAbc() {
             assignmentId={activeDistorsionesAssignment}
             onCancel={() => { setView('dashboard'); setActiveDistorsionesAssignment(null); }}
             onSaved={() => { setView('dashboard'); setActiveDistorsionesAssignment(null); }}
+          />
+        )}
+
+        {view === 'rueda-vida' && (
+          <RuedaVidaForm
+            assignmentId={activeRuedaVidaAssignment}
+            onCancel={() => { setView('dashboard'); setActiveRuedaVidaAssignment(null); }}
+            onSaved={() => { setView('dashboard'); setActiveRuedaVidaAssignment(null); }}
           />
         )}
 
