@@ -9,6 +9,8 @@ export const lineaVidaRecordsTable = pgTable("linea_vida_records", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   presenteCircunstancias: text("presente_circunstancias"),
   reflexionPatrones: text("reflexion_patrones"),
   fortalezasVitales: text("fortalezas_vitales"),

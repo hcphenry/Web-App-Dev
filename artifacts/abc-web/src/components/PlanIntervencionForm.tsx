@@ -11,6 +11,10 @@ interface Props {
   assignmentId?: number | null;
   /** Si está definido, el formulario lo envía un psicólogo/admin EN NOMBRE del paciente indicado. */
   forPacienteId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado (modo psi). */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -25,27 +29,43 @@ interface SesionRow {
 const SESSION_COUNT = 8;
 const emptyRow = (): SesionRow => ({ objetivoEspecifico: "", actividades: "", tiempo: "", materiales: "" });
 
-export default function PlanIntervencionForm({ assignmentId, forPacienteId, onCancel, onSaved }: Props) {
+export default function PlanIntervencionForm({ assignmentId, forPacienteId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const psiMode = psiPacienteId != null;
+  const psiData: any = psiRecord?.data ?? null;
 
   const today = new Date().toISOString().slice(0, 10);
 
   // Datos generales
-  const [pacienteNombre, setPacienteNombre] = useState("");
-  const [edad, setEdad] = useState("");
-  const [areasEvaluar, setAreasEvaluar] = useState("");
-  const [diasTrabajo, setDiasTrabajo] = useState("");
-  const [horarioTrabajo, setHorarioTrabajo] = useState("");
-  const [periodoTratamiento, setPeriodoTratamiento] = useState("");
-  const [fechaEmision, setFechaEmision] = useState(today);
-  const [responsable, setResponsable] = useState("");
-  const [objetivoGeneral, setObjetivoGeneral] = useState("");
+  const [pacienteNombre, setPacienteNombre] = useState(psiData?.pacienteNombre ?? psiRecord?.pacienteNombre ?? "");
+  const [edad, setEdad] = useState(psiData?.edad ?? "");
+  const [areasEvaluar, setAreasEvaluar] = useState(psiData?.areasEvaluar ?? "");
+  const [diasTrabajo, setDiasTrabajo] = useState(psiData?.diasTrabajo ?? "");
+  const [horarioTrabajo, setHorarioTrabajo] = useState(psiData?.horarioTrabajo ?? "");
+  const [periodoTratamiento, setPeriodoTratamiento] = useState(psiData?.periodoTratamiento ?? "");
+  const [fechaEmision, setFechaEmision] = useState(psiData?.fechaEmision ?? psiRecord?.fechaEmision ?? today);
+  const [responsable, setResponsable] = useState(psiData?.responsable ?? psiRecord?.responsable ?? "");
+  const [objetivoGeneral, setObjetivoGeneral] = useState(psiData?.objetivoGeneral ?? "");
 
   // 8 sesiones, cada una con filas de tabla
-  const [sesiones, setSesiones] = useState<SesionRow[][]>(
-    Array.from({ length: SESSION_COUNT }, () => [emptyRow()])
-  );
+  const [sesiones, setSesiones] = useState<SesionRow[][]>(() => {
+    const base = Array.from({ length: SESSION_COUNT }, () => [emptyRow()]);
+    if (psiData?.sesiones && Array.isArray(psiData.sesiones)) {
+      for (const s of psiData.sesiones) {
+        const idx = (s?.numero ?? 0) - 1;
+        if (idx >= 0 && idx < SESSION_COUNT && Array.isArray(s?.rows) && s.rows.length) {
+          base[idx] = s.rows.map((r: any) => ({
+            objetivoEspecifico: r?.objetivoEspecifico ?? "",
+            actividades: r?.actividades ?? "",
+            tiempo: r?.tiempo ?? "",
+            materiales: r?.materiales ?? "",
+          }));
+        }
+      }
+    }
+    return base;
+  });
 
   const [activeSesion, setActiveSesion] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -88,14 +108,20 @@ export default function PlanIntervencionForm({ assignmentId, forPacienteId, onCa
         objetivoGeneral,
         sesiones: sesiones.map((rows, i) => ({ numero: i + 1, rows })),
       };
-      const url = forPacienteId
-        ? `/api/plan-intervencion/for-patient/${forPacienteId}`
-        : "/api/plan-intervencion/mine";
-      const body = forPacienteId
-        ? { pacienteNombre, fechaEmision, responsable, data }
-        : { assignmentId: assignmentId ?? null, pacienteNombre, fechaEmision, responsable, data };
+      let url: string;
+      let method = "POST";
+      if (psiMode) {
+        if (psiRecord?.id) { url = `/api/plan-intervencion/psi/${psiRecord.id}`; method = "PATCH"; }
+        else { url = `/api/plan-intervencion/psi/for-patient/${psiPacienteId}`; method = "POST"; }
+      } else {
+        url = forPacienteId
+          ? `/api/plan-intervencion/for-patient/${forPacienteId}`
+          : "/api/plan-intervencion/mine";
+      }
+      const body: Record<string, unknown> = { pacienteNombre, fechaEmision, responsable, data };
+      if (!psiMode && !forPacienteId) body.assignmentId = assignmentId ?? null;
       const r = await fetch(url, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -103,10 +129,14 @@ export default function PlanIntervencionForm({ assignmentId, forPacienteId, onCa
         const e = await r.json().catch(() => ({}));
         throw new Error(e.error || "Error al guardar");
       }
-      toast({ title: "Plan guardado", description: "El plan de intervención se registró correctamente." });
-      queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
-      if (forPacienteId) {
-        queryClient.invalidateQueries({ queryKey: ["psicologo-patient-plan-intervencion", forPacienteId] });
+      toast(psiMode
+        ? { title: "Registro guardado" }
+        : { title: "Plan guardado", description: "El plan de intervención se registró correctamente." });
+      if (!psiMode) {
+        queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+        if (forPacienteId) {
+          queryClient.invalidateQueries({ queryKey: ["psicologo-patient-plan-intervencion", forPacienteId] });
+        }
       }
       onSaved();
     } catch (e) {

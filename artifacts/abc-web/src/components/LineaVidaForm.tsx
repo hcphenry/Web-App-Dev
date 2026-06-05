@@ -13,6 +13,10 @@ import {
 
 interface Props {
   assignmentId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado. */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -82,27 +86,42 @@ function newEvento(): Evento {
   };
 }
 
-export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props) {
+export default function LineaVidaForm({ assignmentId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const psiMode = psiPacienteId != null;
+
+  const eventosFromRecord = (rec: any): Evento[] =>
+    Array.isArray(rec?.eventos)
+      ? rec.eventos.map((e: any) => ({
+          id: typeof e.id === "string" ? e.id : Math.random().toString(36).slice(2),
+          edad: String(e.edad ?? ""),
+          titulo: String(e.titulo ?? ""),
+          descripcion: String(e.descripcion ?? ""),
+          tipo: (["positivo", "negativo", "neutral"].includes(e.tipo) ? e.tipo : "neutral") as Tipo,
+          emocion: String(e.emocion ?? ""),
+          aprendizaje: String(e.aprendizaje ?? ""),
+        }))
+      : [];
 
   const [stepIdx, setStepIdx] = useState(0);
-  const [presenteCircunstancias, setPresenteCircunstancias] = useState("");
-  const [reflexionPatrones, setReflexionPatrones] = useState("");
-  const [fortalezasVitales, setFortalezasVitales] = useState("");
-  const [aprendizajesGenerales, setAprendizajesGenerales] = useState("");
-  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [presenteCircunstancias, setPresenteCircunstancias] = useState(psiMode ? (psiRecord?.presenteCircunstancias ?? "") : "");
+  const [reflexionPatrones, setReflexionPatrones] = useState(psiMode ? (psiRecord?.reflexionPatrones ?? "") : "");
+  const [fortalezasVitales, setFortalezasVitales] = useState(psiMode ? (psiRecord?.fortalezasVitales ?? "") : "");
+  const [aprendizajesGenerales, setAprendizajesGenerales] = useState(psiMode ? (psiRecord?.aprendizajesGenerales ?? "") : "");
+  const [eventos, setEventos] = useState<Evento[]>(psiMode && psiRecord ? eventosFromRecord(psiRecord) : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Evento>(newEvento());
   const [saving, setSaving] = useState(false);
-  const [existingRecordId, setExistingRecordId] = useState<number | null>(null);
-  const [loadingExisting, setLoadingExisting] = useState(true);
-  const [recordCreatedAt, setRecordCreatedAt] = useState<string | null>(null);
+  const [existingRecordId, setExistingRecordId] = useState<number | null>(psiMode ? (psiRecord?.id ?? null) : null);
+  const [loadingExisting, setLoadingExisting] = useState(!psiMode);
+  const [recordCreatedAt, setRecordCreatedAt] = useState<string | null>(psiMode ? (psiRecord?.createdAt ?? null) : null);
 
   // Cargar la última línea de vida del paciente. Si existe, hidrata el form
   // en modo edición — el paciente puede agregar/editar/borrar eventos y
   // guardar los cambios en el mismo registro (no se crea uno nuevo).
   useEffect(() => {
+    if (psiMode) return;
     let active = true;
     setLoadingExisting(true);
     fetch("/api/linea-vida/mine", { credentials: "include" })
@@ -213,10 +232,6 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
     }
     setSaving(true);
     try {
-      const isEdit = existingRecordId !== null;
-      const url = isEdit
-        ? `/api/linea-vida/${existingRecordId}`
-        : "/api/linea-vida/mine";
       const body: Record<string, unknown> = {
         presenteCircunstancias,
         reflexionPatrones,
@@ -224,9 +239,21 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
         aprendizajesGenerales,
         eventos: sortedEventos,
       };
-      if (!isEdit) body.assignmentId = assignmentId ?? null;
+      let url: string;
+      let method: string;
+      let isEdit: boolean;
+      if (psiMode) {
+        isEdit = !!psiRecord?.id;
+        url = isEdit ? `/api/linea-vida/psi/${psiRecord.id}` : `/api/linea-vida/psi/for-patient/${psiPacienteId}`;
+        method = isEdit ? "PATCH" : "POST";
+      } else {
+        isEdit = existingRecordId !== null;
+        url = isEdit ? `/api/linea-vida/${existingRecordId}` : "/api/linea-vida/mine";
+        method = isEdit ? "PATCH" : "POST";
+        if (!isEdit) body.assignmentId = assignmentId ?? null;
+      }
       const res = await fetch(url, {
-        method: isEdit ? "PATCH" : "POST",
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
@@ -237,6 +264,11 @@ export default function LineaVidaForm({ assignmentId, onCancel, onSaved }: Props
       }
       const saved = await res.json().catch(() => null);
       if (saved?.id && !isEdit) setExistingRecordId(saved.id);
+      if (psiMode) {
+        toast({ title: "Registro guardado" });
+        onSaved();
+        return;
+      }
       toast({
         title: isEdit ? "Cambios guardados" : "¡Línea de vida guardada!",
         description: isEdit

@@ -9,6 +9,8 @@ export const ruedaVidaRecordsTable = pgTable("rueda_vida_records", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   items: jsonb("items").notNull().default([]),
   accionSemillaArea: text("accion_semilla_area"),
   accionSemilla: text("accion_semilla"),

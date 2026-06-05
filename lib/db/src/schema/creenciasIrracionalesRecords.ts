@@ -9,6 +9,8 @@ export const creenciasIrracionalesRecordsTable = pgTable("creencias_irracionales
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   items: jsonb("items").notNull().default([]),
   notas: text("notas"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

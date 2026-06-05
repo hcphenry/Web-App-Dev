@@ -213,6 +213,10 @@ interface Record {
 
 interface Props {
   assignmentId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado. */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -240,27 +244,46 @@ function radarDataFromItems(items: ItemValue[]) {
   }));
 }
 
-export default function RuedaVidaForm({ assignmentId, onCancel, onSaved }: Props) {
+export default function RuedaVidaForm({ assignmentId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const psiMode = psiPacienteId != null;
 
-  const [view, setView] = useState<"history" | "form">("history");
+  const subValuesFromRecord = (rec: any): { [areaKey: string]: { [subKey: string]: number } } => {
+    const next: { [k: string]: { [k: string]: number } } = {};
+    for (const a of AREAS) {
+      const recItem = rec?.items?.find((it: any) => it.key === a.key);
+      const subMap: { [k: string]: number } = {};
+      const recSubs = recItem?.subitems ?? [];
+      const subByLabel = new Map(recSubs.map((s: any) => [s.label, s.score]));
+      for (const s of a.subitems) {
+        const v = subByLabel.get(s.label) as number | undefined;
+        subMap[s.key] = v ?? recItem?.score ?? 5;
+      }
+      next[a.key] = subMap;
+    }
+    return next;
+  };
+
+  const [view, setView] = useState<"history" | "form">(psiMode ? "form" : "history");
   const [records, setRecords] = useState<Record[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(psiMode ? (psiRecord?.id ?? null) : null);
   const [expanded, setExpanded] = useState<{ [k: string]: boolean }>({});
   const [chartFullId, setChartFullId] = useState<number | null>(null);
   const [showEvolution, setShowEvolution] = useState(false);
 
   // Estado de los sub-ítems por área (key = `${areaKey}.${subKey}`) y notas.
   const [subValues, setSubValues] = useState<{ [areaKey: string]: { [subKey: string]: number } }>(
-    () => Object.fromEntries(AREAS.map(a => [a.key, Object.fromEntries(a.subitems.map(s => [s.key, 5]))])),
+    () => psiMode && psiRecord
+      ? subValuesFromRecord(psiRecord)
+      : Object.fromEntries(AREAS.map(a => [a.key, Object.fromEntries(a.subitems.map(s => [s.key, 5]))])),
   );
-  const [notas, setNotas] = useState<string>("");
-  const [accionArea, setAccionArea] = useState<string>("");
-  const [accionTexto, setAccionTexto] = useState<string>("");
-  const [accionFecha, setAccionFecha] = useState<string>("");
+  const [notas, setNotas] = useState<string>(psiMode ? (psiRecord?.notas ?? "") : "");
+  const [accionArea, setAccionArea] = useState<string>(psiMode ? (psiRecord?.accionSemillaArea ?? "") : "");
+  const [accionTexto, setAccionTexto] = useState<string>(psiMode ? (psiRecord?.accionSemilla ?? "") : "");
+  const [accionFecha, setAccionFecha] = useState<string>(psiMode ? (psiRecord?.accionSemillaFecha ?? "") : "");
 
   const refresh = async () => {
     setLoadingList(true);
@@ -272,7 +295,10 @@ export default function RuedaVidaForm({ assignmentId, onCancel, onSaved }: Props
     setLoadingList(false);
   };
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    if (psiMode) { setLoadingList(false); return; }
+    void refresh();
+  }, []);
 
   const resetForm = () => {
     setSubValues(Object.fromEntries(AREAS.map(a => [a.key, Object.fromEntries(a.subitems.map(s => [s.key, 5]))])));
@@ -324,16 +350,35 @@ export default function RuedaVidaForm({ assignmentId, onCancel, onSaved }: Props
           subitems: a.subitems.map(s => ({ label: s.label, score: subs[s.key] ?? 0 })),
         };
       });
-      const isEdit = editingId !== null;
-      const url = isEdit ? `/api/rueda-vida/${editingId}` : "/api/rueda-vida/mine";
-      const method = isEdit ? "PATCH" : "POST";
-      const body: any = {
+      const baseBody: any = {
         items,
         notas: notas || null,
         accionSemillaArea: accionArea || null,
         accionSemilla: accionTexto || null,
         accionSemillaFecha: accionFecha || null,
       };
+      if (psiMode) {
+        const isEditPsi = !!psiRecord?.id;
+        const url = isEditPsi
+          ? `/api/rueda-vida/psi/${psiRecord.id}`
+          : `/api/rueda-vida/psi/for-patient/${psiPacienteId}`;
+        const method = isEditPsi ? "PATCH" : "POST";
+        const r = await fetch(url, {
+          method,
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(baseBody),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || "No se pudo guardar");
+        toast({ title: "Registro guardado" });
+        onSaved();
+        return;
+      }
+      const isEdit = editingId !== null;
+      const url = isEdit ? `/api/rueda-vida/${editingId}` : "/api/rueda-vida/mine";
+      const method = isEdit ? "PATCH" : "POST";
+      const body: any = { ...baseBody };
       if (!isEdit && assignmentId) body.assignmentId = assignmentId;
 
       const r = await fetch(url, {

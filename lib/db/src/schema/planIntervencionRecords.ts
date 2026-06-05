@@ -9,6 +9,8 @@ export const planIntervencionRecordsTable = pgTable("plan_intervencion_records",
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   pacienteNombre: text("paciente_nombre"),
   fechaEmision: text("fecha_emision"),
   responsable: text("responsable"),

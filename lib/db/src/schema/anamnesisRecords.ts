@@ -9,6 +9,8 @@ export const anamnesisRecordsTable = pgTable("anamnesis_records", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   nombreNino: text("nombre_nino").notNull().default(""),
   edad: text("edad"),
   sexo: text("sexo"),

@@ -820,6 +820,50 @@ export async function runMigrations() {
       `);
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 24 (creencias irracionales) skipped"); }
 
+    // ── PHASE 25: Tareas "para Psicólogos" parte 2 —
+    //   (a) tabla psychologist_task_access: habilitación por psicólogo de tareas
+    //       cuyo target_role='psicologo' (sin fila = NO disponible).
+    //   (b) columna psicologo_id en cada tabla de registros: cuando un psicólogo
+    //       llena una tarea para un paciente, el registro lleva psicologo_id; así
+    //       el paciente NUNCA lo ve (su GET /mine filtra psicologo_id IS NULL).
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS psychologist_task_access (
+          id SERIAL PRIMARY KEY,
+          psicologo_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          task_id INTEGER NOT NULL REFERENCES therapeutic_tasks(id) ON DELETE CASCADE,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS psychologist_task_access_unique
+          ON psychologist_task_access (psicologo_id, task_id);
+        CREATE INDEX IF NOT EXISTS psychologist_task_access_psicologo_idx
+          ON psychologist_task_access (psicologo_id);
+        CREATE INDEX IF NOT EXISTS psychologist_task_access_task_idx
+          ON psychologist_task_access (task_id);
+      `);
+
+      const recordTables = [
+        "anamnesis_records",
+        "primera_consulta_records",
+        "desarrollo_sesion_records",
+        "consulta_psicologica_records",
+        "plan_intervencion_records",
+        "linea_vida_records",
+        "consentimiento_informado_records",
+        "distorsiones_records",
+        "rueda_vida_records",
+        "creencias_irracionales_records",
+      ];
+      for (const tbl of recordTables) {
+        await client.query(`
+          ALTER TABLE ${tbl}
+            ADD COLUMN IF NOT EXISTS psicologo_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+          CREATE INDEX IF NOT EXISTS ${tbl}_psicologo_idx ON ${tbl} (psicologo_id);
+        `);
+      }
+      logger.info("[migrate] ✓ PHASE 25: psychologist_task_access + psicologo_id en registros");
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 25 (tareas para psicólogos parte 2) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

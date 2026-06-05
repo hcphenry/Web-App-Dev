@@ -5,6 +5,7 @@ import {
   therapeuticTasksTable,
   taskAssignmentsTable,
   patientProfilesTable,
+  psychologistTaskAccessTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, gte, lte, inArray, ilike } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
@@ -138,6 +139,84 @@ router.patch("/catalog/:id", requireAdmin, async (req: any, res) => {
     ipAddress: getIp(req), details: { changes: Object.keys(patch).filter(k => k !== "updatedAt") },
   });
   res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+});
+
+// ─── ACCESO A TAREAS "PARA PSICÓLOGOS" (admin habilita por psicólogo) ──────
+
+// GET /api/tareas/psi-access/:psicologoId — admin: lista de taskIds habilitados
+router.get("/psi-access/:psicologoId", requireAdmin, async (req: any, res) => {
+  const pid = parseInt(req.params.psicologoId);
+  if (!Number.isInteger(pid)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
+  const [p] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+  if (!p || p.role !== "psicologo") { res.status(404).json({ error: "Psicólogo no encontrado" }); return; }
+  const rows = await db.select({ taskId: psychologistTaskAccessTable.taskId })
+    .from(psychologistTaskAccessTable)
+    .where(eq(psychologistTaskAccessTable.psicologoId, pid));
+  res.json({ taskIds: rows.map(r => r.taskId) });
+});
+
+// PUT /api/tareas/psi-access/:psicologoId — admin: reemplaza el set de tareas habilitadas
+router.put("/psi-access/:psicologoId", requireAdmin, async (req: any, res) => {
+  const pid = parseInt(req.params.psicologoId);
+  if (!Number.isInteger(pid)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
+  const [p] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+  if (!p || p.role !== "psicologo") { res.status(404).json({ error: "Psicólogo no encontrado" }); return; }
+
+  const body = req.body ?? {};
+  const taskIds: number[] = Array.isArray(body.taskIds)
+    ? Array.from(new Set(body.taskIds.map((x: unknown) => Number(x)).filter((n: number) => Number.isInteger(n))))
+    : [];
+
+  // Todas las tareas deben existir y ser target_role='psicologo'
+  if (taskIds.length) {
+    const tasks = await db.select({ id: therapeuticTasksTable.id })
+      .from(therapeuticTasksTable)
+      .where(and(inArray(therapeuticTasksTable.id, taskIds), eq(therapeuticTasksTable.targetRole, "psicologo")));
+    const valid = new Set(tasks.map(t => t.id));
+    for (const t of taskIds) {
+      if (!valid.has(t)) { res.status(400).json({ error: `La tarea ${t} no existe o no es "para Psicólogos"` }); return; }
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(psychologistTaskAccessTable).where(eq(psychologistTaskAccessTable.psicologoId, pid));
+    if (taskIds.length) {
+      await tx.insert(psychologistTaskAccessTable).values(taskIds.map(t => ({ psicologoId: pid, taskId: t })));
+    }
+  });
+
+  await logAudit({
+    actorId: req.session.userId, actorName: await getActorName(req.session.userId),
+    action: "SET_PSI_TASK_ACCESS", targetTable: "psychologist_task_access", targetId: pid,
+    ipAddress: getIp(req), details: { psicologoId: pid, taskIds },
+  });
+  res.json({ taskIds });
+});
+
+// GET /api/tareas/my-psi-tasks — psicólogo: catálogo de tareas "para Psicólogos" habilitadas para él
+router.get("/my-psi-tasks", requirePsicologo, async (req: any, res) => {
+  const rows = await db.select({
+    id: therapeuticTasksTable.id,
+    key: therapeuticTasksTable.key,
+    name: therapeuticTasksTable.name,
+    description: therapeuticTasksTable.description,
+    icon: therapeuticTasksTable.icon,
+    color: therapeuticTasksTable.color,
+    badgeColor: therapeuticTasksTable.badgeColor,
+    routePath: therapeuticTasksTable.routePath,
+    isActive: therapeuticTasksTable.isActive,
+    isAvailable: therapeuticTasksTable.isAvailable,
+    targetRole: therapeuticTasksTable.targetRole,
+  })
+    .from(psychologistTaskAccessTable)
+    .innerJoin(therapeuticTasksTable, eq(therapeuticTasksTable.id, psychologistTaskAccessTable.taskId))
+    .where(and(
+      eq(psychologistTaskAccessTable.psicologoId, req.session.userId),
+      eq(therapeuticTasksTable.targetRole, "psicologo"),
+      eq(therapeuticTasksTable.isActive, true),
+    ))
+    .orderBy(therapeuticTasksTable.name);
+  res.json(rows);
 });
 
 // ─── LOOKUPS (pacientes / psicólogos para selects) ────────────────────────
@@ -293,28 +372,44 @@ router.post("/assignments", requireAdminOrPsi, async (req: any, res) => {
   if (!task) { res.status(404).json({ error: "Tarea no encontrada" }); return; }
   if (!task.isActive) { res.status(400).json({ error: "La tarea no está activa" }); return; }
 
-  // The assignee must match the task's target_role.
-  // (We reuse the paciente_id column as the generic assignee_id for backwards-compat.)
-  const expectedRole = task.targetRole === "psicologo" ? "psicologo" : "user";
-  const [assignee] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
-  if (!assignee || assignee.role !== expectedRole) {
-    res.status(400).json({
-      error: task.targetRole === "psicologo"
-        ? "Esta tarea es para psicólogos: el asignado debe ser un psicólogo."
-        : "Esta tarea es para pacientes: el asignado debe ser un paciente.",
-    });
-    return;
-  }
+  // "para Psicólogos" fill-flow: un psicólogo asigna una tarea para-psicólogos a
+  // uno de SUS pacientes (el paciente es el sujeto; psicologo_id = el psicólogo).
+  // La tarea debe estar habilitada para ese psicólogo (psychologist_task_access).
+  // El admin NO entra a este flujo: su menú "Tareas" no cambia.
+  const psiFillFlow = req.session.userRole === "psicologo" && task.targetRole === "psicologo";
 
-  // Psicólogo restrictions: can only assign to own patients (paciente-target)
-  // or to themselves (psicologo-target).
-  if (req.session.userRole === "psicologo") {
-    if (task.targetRole === "psicologo") {
-      if (pid !== req.session.userId) {
-        res.status(403).json({ error: "Como psicólogo solo puedes asignarte a ti mismo las tareas para psicólogo." });
-        return;
-      }
-    } else {
+  const [assignee] = await db.select().from(usersTable).where(eq(usersTable.id, pid)).limit(1);
+
+  if (psiFillFlow) {
+    if (!assignee || assignee.role !== "user") {
+      res.status(400).json({ error: "El asignado debe ser un paciente." }); return;
+    }
+    if (!(await isMyPatient(req.session.userId, pid))) {
+      res.status(403).json({ error: "Solo puedes asignar tareas a tus pacientes." }); return;
+    }
+    const [acc] = await db.select({ id: psychologistTaskAccessTable.id })
+      .from(psychologistTaskAccessTable)
+      .where(and(
+        eq(psychologistTaskAccessTable.psicologoId, req.session.userId),
+        eq(psychologistTaskAccessTable.taskId, tid),
+      )).limit(1);
+    if (!acc) {
+      res.status(403).json({ error: 'Esta tarea "para Psicólogos" no está habilitada para ti.' }); return;
+    }
+  } else {
+    // The assignee must match the task's target_role.
+    // (We reuse the paciente_id column as the generic assignee_id for backwards-compat.)
+    const expectedRole = task.targetRole === "psicologo" ? "psicologo" : "user";
+    if (!assignee || assignee.role !== expectedRole) {
+      res.status(400).json({
+        error: task.targetRole === "psicologo"
+          ? "Esta tarea es para psicólogos: el asignado debe ser un psicólogo."
+          : "Esta tarea es para pacientes: el asignado debe ser un paciente.",
+      });
+      return;
+    }
+    // Psicólogo restriction for paciente-target tasks: own patients only.
+    if (req.session.userRole === "psicologo" && task.targetRole !== "psicologo") {
       const ok = await isMyPatient(req.session.userId, pid);
       if (!ok) {
         res.status(403).json({ error: "Solo puedes asignar tareas a tus pacientes." });
@@ -324,16 +419,20 @@ router.post("/assignments", requireAdminOrPsi, async (req: any, res) => {
   }
 
   let psiId: number | null = null;
-  if (psicologoId !== undefined && psicologoId !== null && psicologoId !== "") {
-    const v = Number(psicologoId);
-    if (!Number.isInteger(v)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
-    const [p] = await db.select().from(usersTable).where(eq(usersTable.id, v)).limit(1);
-    if (!p || p.role !== "psicologo") { res.status(400).json({ error: "Psicólogo inválido" }); return; }
-    psiId = v;
-  }
-  // If creator is a psicólogo and didn't specify, default to themselves
-  if (psiId === null && req.session.userRole === "psicologo") {
+  if (psiFillFlow) {
     psiId = req.session.userId;
+  } else {
+    if (psicologoId !== undefined && psicologoId !== null && psicologoId !== "") {
+      const v = Number(psicologoId);
+      if (!Number.isInteger(v)) { res.status(400).json({ error: "psicologoId inválido" }); return; }
+      const [p] = await db.select().from(usersTable).where(eq(usersTable.id, v)).limit(1);
+      if (!p || p.role !== "psicologo") { res.status(400).json({ error: "Psicólogo inválido" }); return; }
+      psiId = v;
+    }
+    // If creator is a psicólogo and didn't specify, default to themselves
+    if (psiId === null && req.session.userRole === "psicologo") {
+      psiId = req.session.userId;
+    }
   }
 
   let due: Date | null = null;

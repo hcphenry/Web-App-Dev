@@ -1,0 +1,1 @@
+- [Psi record isolation](psi-record-isolation.md) — psicologo_id discriminator rules for "para Psicólogos" tasks; every patient-readable endpoint must exclude psi-filled rows.

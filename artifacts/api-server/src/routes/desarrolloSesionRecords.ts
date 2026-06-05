@@ -6,8 +6,9 @@ import {
   taskAssignmentsTable,
   patientProfilesTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray, ilike } from "drizzle-orm";
+import { eq, and, desc, inArray, ilike, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -44,6 +45,14 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: desarrolloSesionRecordsTable,
+  auditName: "DESARROLLO_SESION",
+  targetTable: "desarrollo_sesion_records",
+  taskKeys: ["desarrollo-sesion", "desarrollo-sesion-paciente"],
+  mapBody: (b) => ({ fechaSesion: pStr(b.fechaSesion), horaSesion: pStr(b.horaSesion), numeroSesion: pStr(b.numeroSesion), data: pData(b) }),
+});
+
 /** Para psicólogo: verifica que `pacienteId` esté asignado a su nombre. Admin pasa siempre. */
 async function psiOwnsPatient(req: any, pacienteId: number): Promise<boolean> {
   if (req.session.userRole === "admin") return true;
@@ -61,7 +70,10 @@ async function psiOwnsPatient(req: any, pacienteId: number): Promise<boolean> {
 // ── Paciente: lista sus propios registros (todas las sesiones que ha guardado)
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(desarrolloSesionRecordsTable)
-    .where(eq(desarrolloSesionRecordsTable.pacienteId, req.session.userId))
+    .where(and(
+      eq(desarrolloSesionRecordsTable.pacienteId, req.session.userId),
+      isNull(desarrolloSesionRecordsTable.psicologoId),
+    ))
     .orderBy(desc(desarrolloSesionRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -201,7 +213,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
     .where(eq(desarrolloSesionRecordsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "No encontrado" }); return; }
   const role = req.session.userRole;
-  if (role !== "admin" && role !== "psicologo" && row.pacienteId !== req.session.userId) {
+  if (role !== "admin" && role !== "psicologo" && (row.pacienteId !== req.session.userId || row.psicologoId !== null)) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

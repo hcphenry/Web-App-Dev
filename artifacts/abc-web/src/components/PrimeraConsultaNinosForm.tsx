@@ -9,6 +9,10 @@ import { ArrowLeft, Save, Loader2, ClipboardList } from "lucide-react";
 
 interface Props {
   assignmentId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado. */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -87,11 +91,12 @@ const SECTIONS: Array<{ id: string; title: string; fields: Array<{ key: string; 
   },
 ];
 
-export default function PrimeraConsultaNinosForm({ assignmentId, onCancel, onSaved }: Props) {
+export default function PrimeraConsultaNinosForm({ assignmentId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [nombreNino, setNombreNino] = useState("");
-  const [data, setData] = useState<Record<string, string>>({});
+  const psiMode = psiPacienteId != null;
+  const [nombreNino, setNombreNino] = useState(psiRecord?.nombreNino ?? "");
+  const [data, setData] = useState<Record<string, string>>(psiRecord?.data ?? {});
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
 
@@ -105,23 +110,32 @@ export default function PrimeraConsultaNinosForm({ assignmentId, onCancel, onSav
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/primera-consulta/mine", {
-        method: "POST",
+      let url = "/api/primera-consulta/mine";
+      let method = "POST";
+      if (psiMode) {
+        if (psiRecord?.id) { url = `/api/primera-consulta/psi/${psiRecord.id}`; method = "PATCH"; }
+        else { url = `/api/primera-consulta/psi/for-patient/${psiPacienteId}`; method = "POST"; }
+      }
+      const body: Record<string, unknown> = {
+        nombreNino,
+        edad: data.edad ?? null,
+        motivoConsulta: data.motivoConsulta ?? null,
+        data,
+      };
+      if (!psiMode) body.assignmentId = assignmentId ?? null;
+      const r = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignmentId: assignmentId ?? null,
-          nombreNino,
-          edad: data.edad ?? null,
-          motivoConsulta: data.motivoConsulta ?? null,
-          data,
-        }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({}));
         throw new Error(e.error || "Error al guardar");
       }
-      toast({ title: "Primera consulta guardada", description: "La tarea se marcó como completada." });
-      queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+      toast(psiMode
+        ? { title: "Registro guardado" }
+        : { title: "Primera consulta guardada", description: "La tarea se marcó como completada." });
+      if (!psiMode) queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
       onSaved();
     } catch (e) {
       toast({ title: "Error", description: (e as Error).message, variant: "destructive" });

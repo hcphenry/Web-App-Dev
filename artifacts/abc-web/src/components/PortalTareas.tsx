@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -97,7 +96,6 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
   const isPsi = mode === "psicologo";
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), enabled: isPsi } });
 
   const [tab, setTab] = useState<"asignaciones" | "reportes" | "catalogo">("asignaciones");
   const [filterPaciente, setFilterPaciente] = useState("all");
@@ -118,6 +116,12 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
     queryKey: ["tareas", "lookup", "psicologos"],
     queryFn: async () => (await fetch("/api/tareas/lookup/psicologos")).json(),
     enabled: !isPsi, // psi mode doesn't need the full psi list
+  });
+  // Psi mode only: the "para Psicólogos" tasks the admin enabled for this psi.
+  const myPsiTasksQ = useQuery<TaskCatalog[]>({
+    queryKey: ["tareas", "my-psi-tasks"],
+    queryFn: async () => (await fetch("/api/tareas/my-psi-tasks")).json(),
+    enabled: isPsi,
   });
 
   const assignmentsParams = useMemo(() => {
@@ -154,6 +158,19 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
   const pacientes = pacientesQ.data ?? [];
   const psicologos = psicologosQ.data ?? [];
   const assignments = assignmentsQ.data ?? [];
+  const myPsiTasks = myPsiTasksQ.data ?? [];
+  const enabledPsiIds = useMemo(() => new Set(myPsiTasks.map(t => t.id)), [myPsiTasks]);
+
+  // Tasks selectable in the "Nueva asignación" dialog.
+  //  - Admin: every active task.
+  //  - Psicólogo: active "para pacientes" tasks + only the "para Psicólogos" tasks
+  //    the admin enabled for this psi.
+  const assignableTasks = useMemo(() => {
+    if (!isPsi) return catalog.filter(t => t.isActive);
+    return catalog.filter(t =>
+      t.isActive && (t.targetRole === "paciente" || enabledPsiIds.has(t.id)),
+    );
+  }, [catalog, isPsi, enabledPsiIds]);
 
   // ─── KPIs (computed client-side from filtered list) ────────────────────
   const kpis = useMemo(() => {
@@ -721,16 +738,15 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
               <Select
                 value={form.taskId}
                 onValueChange={(v) => {
-                  const t = catalog.find(c => String(c.id) === v);
-                  // In psi mode + psi-target task: auto-pick self as assignee
-                  const autoPid = isPsi && t?.targetRole === "psicologo" && me?.id ? String(me.id) : "";
-                  setForm(f => ({ ...f, taskId: v, pacienteId: autoPid }));
+                  // The assignee is always picked manually (a patient, or — in admin
+                  // mode for psi-target tasks — a psychologist).
+                  setForm(f => ({ ...f, taskId: v, pacienteId: "" }));
                 }}
                 disabled={!!editing}
               >
                 <SelectTrigger><SelectValue placeholder="Selecciona una tarea" /></SelectTrigger>
                 <SelectContent>
-                  {catalog.filter(t => t.isActive).map(t => (
+                  {assignableTasks.map(t => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       <span className="inline-flex items-center gap-2">
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${t.targetRole === "psicologo" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
@@ -749,24 +765,27 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
               const selectedTask = catalog.find(t => String(t.id) === form.taskId);
               if (!selectedTask) return null;
               const isPsiTask = selectedTask.targetRole === "psicologo";
-              // In psi mode, psi-target tasks may only be assigned to the current psi (themselves).
-              const meOpt: { id: number; name: string; email: string } | null =
-                isPsi && isPsiTask && me?.id && me?.name
-                  ? { id: me.id, name: me.name, email: me.email ?? "" }
-                  : null;
-              const options = meOpt
-                ? [meOpt]
-                : isPsiTask
-                  ? psicologos
-                  : pacientes;
+              // Admin assigning a psi-target task → assignee is a psychologist.
+              // Psi assigning a psi-target task → assignee is one of THEIR patients
+              // (the psi fills it for the patient). Paciente-target → a patient.
+              const assigneeIsPsicologo = isPsiTask && !isPsi;
+              const options = assigneeIsPsicologo ? psicologos : pacientes;
               return (
                 <>
                   <div className={`rounded-lg border p-2.5 text-xs ${isPsiTask ? "bg-violet-50 border-violet-200 text-violet-800" : "bg-teal-50 border-teal-200 text-teal-800"}`}>
                     {isPsiTask ? (
-                      <>
-                        <strong>Tarea para psicólogos.</strong> El destinatario debe ser un psicólogo y la tarea aparecerá en su portal.{" "}
-                        <span className="text-violet-700">No se mostrará en el portal del paciente.</span>
-                      </>
+                      isPsi ? (
+                        <>
+                          <strong>Tarea para psicólogos.</strong> Asígnala a tu paciente; tú la llenarás por él/ella en{" "}
+                          <strong>Mis Pacientes</strong>.{" "}
+                          <span className="text-violet-700">El paciente no la verá en su portal.</span>
+                        </>
+                      ) : (
+                        <>
+                          <strong>Tarea para psicólogos.</strong> El destinatario debe ser un psicólogo y la tarea aparecerá en su portal.{" "}
+                          <span className="text-violet-700">No se mostrará en el portal del paciente.</span>
+                        </>
+                      )
                     ) : (
                       <>
                         <strong>Tarea para pacientes.</strong> El destinatario debe ser un paciente y la tarea aparecerá en su portal para que la complete.
@@ -774,14 +793,14 @@ export default function PortalTareas({ mode = "admin" }: PortalTareasProps) {
                     )}
                   </div>
                   <div>
-                    <Label className="text-xs">{isPsiTask ? "Psicólogo destinatario" : "Paciente destinatario"}</Label>
+                    <Label className="text-xs">{assigneeIsPsicologo ? "Psicólogo destinatario" : "Paciente destinatario"}</Label>
                     <Select
                       value={form.pacienteId}
                       onValueChange={(v) => setForm(f => ({ ...f, pacienteId: v }))}
                       disabled={!!editing}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={`Selecciona un ${isPsiTask ? "psicólogo" : "paciente"}`} />
+                        <SelectValue placeholder={`Selecciona un ${assigneeIsPsicologo ? "psicólogo" : "paciente"}`} />
                       </SelectTrigger>
                       <SelectContent>
                         {options.map(p => (

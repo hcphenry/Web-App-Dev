@@ -9,6 +9,8 @@ export const consentimientoInformadoRecordsTable = pgTable("consentimiento_infor
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   accepted: boolean("accepted").notNull().default(false),
   acceptedAt: timestamp("accepted_at"),
   fullName: text("full_name").notNull(),

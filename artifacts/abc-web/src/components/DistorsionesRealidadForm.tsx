@@ -151,6 +151,10 @@ interface Record {
 
 interface Props {
   assignmentId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado. */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -162,19 +166,28 @@ function hoursLeft(createdAt: string): number {
   return Math.max(0, Math.floor(left / (60 * 60 * 1000)));
 }
 
-export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSaved }: Props) {
+export default function DistorsionesRealidadForm({ assignmentId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const psiMode = psiPacienteId != null;
 
-  const [view, setView] = useState<"history" | "form">("history");
+  const valuesFromRecord = (rec: any): { [k: string]: number } => {
+    const vmap: { [k: string]: number } = Object.fromEntries(DISTORSIONES.map(d => [d.key, 0]));
+    for (const it of rec?.items ?? []) {
+      if (typeof it.key === "string" && typeof it.value === "number") vmap[it.key] = it.value;
+    }
+    return vmap;
+  };
+
+  const [view, setView] = useState<"history" | "form">(psiMode ? "form" : "history");
   const [records, setRecords] = useState<Record[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(psiMode ? (psiRecord?.id ?? null) : null);
   const [values, setValues] = useState<{ [k: string]: number }>(
-    Object.fromEntries(DISTORSIONES.map(d => [d.key, 0])),
+    psiMode && psiRecord ? valuesFromRecord(psiRecord) : Object.fromEntries(DISTORSIONES.map(d => [d.key, 0])),
   );
-  const [notas, setNotas] = useState<string>("");
+  const [notas, setNotas] = useState<string>(psiMode ? (psiRecord?.notas ?? "") : "");
 
   const refresh = async () => {
     setLoadingList(true);
@@ -186,7 +199,10 @@ export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSav
     setLoadingList(false);
   };
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    if (psiMode) { setLoadingList(false); return; }
+    void refresh();
+  }, []);
 
   const startNew = () => {
     setEditingId(null);
@@ -210,6 +226,24 @@ export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSav
     setSaving(true);
     try {
       const items = DISTORSIONES.map(d => ({ key: d.key, value: values[d.key] ?? 0 }));
+      if (psiMode) {
+        const isEdit = !!psiRecord?.id;
+        const url = isEdit
+          ? `/api/distorsiones/psi/${psiRecord.id}`
+          : `/api/distorsiones/psi/for-patient/${psiPacienteId}`;
+        const method = isEdit ? "PATCH" : "POST";
+        const r = await fetch(url, {
+          method,
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items, notas: notas || null }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || "No se pudo guardar");
+        toast({ title: "Registro guardado" });
+        onSaved();
+        return;
+      }
       const isEdit = editingId !== null;
       const url = isEdit ? `/api/distorsiones/${editingId}` : "/api/distorsiones/mine";
       const method = isEdit ? "PATCH" : "POST";
@@ -388,7 +422,7 @@ export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSav
           >
             Promedio actual: <span className="font-semibold">{promedio}</span>
           </div>
-          <Button variant="outline" onClick={() => setView("history")} className="rounded-full">
+          <Button variant="outline" onClick={() => psiMode ? onCancel() : setView("history")} className="rounded-full">
             <X className="w-4 h-4 mr-1" /> Cancelar
           </Button>
         </div>
@@ -462,7 +496,7 @@ export default function DistorsionesRealidadForm({ assignmentId, onCancel, onSav
       </div>
 
       <div className="flex flex-wrap justify-end gap-3 pt-2">
-        <Button variant="outline" onClick={() => setView("history")} className="rounded-full">
+        <Button variant="outline" onClick={() => psiMode ? onCancel() : setView("history")} className="rounded-full">
           Cancelar
         </Button>
         <Button onClick={handleSave} disabled={saving || editLocked} className="rounded-full shadow-sm"

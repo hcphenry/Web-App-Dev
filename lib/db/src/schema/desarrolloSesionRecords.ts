@@ -9,6 +9,8 @@ export const desarrolloSesionRecordsTable = pgTable("desarrollo_sesion_records",
     .references(() => usersTable.id, { onDelete: "cascade" }),
   assignmentId: integer("assignment_id")
     .references(() => taskAssignmentsTable.id, { onDelete: "set null" }),
+  psicologoId: integer("psicologo_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
   fechaSesion: text("fecha_sesion"),
   horaSesion: text("hora_sesion"),
   numeroSesion: text("numero_sesion"),

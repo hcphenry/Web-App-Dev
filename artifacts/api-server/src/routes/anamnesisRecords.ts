@@ -6,8 +6,9 @@ import {
   taskAssignmentsTable,
   therapeuticTasksTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -44,10 +45,18 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: anamnesisRecordsTable,
+  auditName: "ANAMNESIS",
+  targetTable: "anamnesis_records",
+  taskKeys: ["anamnesis-menor"],
+  mapBody: (b) => ({ nombreNino: pStr(b.nombreNino) ?? "", edad: pStr(b.edad), sexo: pStr(b.sexo), motivoConsulta: pStr(b.motivoConsulta), entrevistador: pStr(b.entrevistador), data: pData(b) }),
+});
+
 // GET /api/anamnesis/mine — paciente lists own records
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(anamnesisRecordsTable)
-    .where(eq(anamnesisRecordsTable.pacienteId, req.session.userId))
+    .where(and(eq(anamnesisRecordsTable.pacienteId, req.session.userId), isNull(anamnesisRecordsTable.psicologoId)))
     .orderBy(desc(anamnesisRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -147,7 +156,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
     .where(eq(anamnesisRecordsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "No encontrado" }); return; }
   const role = req.session.userRole;
-  if (role !== "admin" && role !== "psicologo" && row.pacienteId !== req.session.userId) {
+  if (role !== "admin" && role !== "psicologo" && (row.pacienteId !== req.session.userId || row.psicologoId !== null)) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

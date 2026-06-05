@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter 
 } from "@/components/ui/dialog";
@@ -114,6 +115,15 @@ interface Psicologo {
   dateOfBirth?: string | null; profession?: string | null;
   registrationDate?: string | null; deregistrationDate?: string | null;
   commissionPercentage?: string | null; licenseNumber?: string | null;
+}
+
+interface TaskCatalog {
+  id: number;
+  key: string;
+  name: string;
+  description?: string | null;
+  targetRole: "paciente" | "psicologo";
+  isActive: boolean;
 }
 
 interface AvailabilitySlot {
@@ -592,6 +602,64 @@ export default function AdminDashboard() {
     } else {
       createPsicologoMut.mutate(data);
     }
+  };
+
+  // ─── PSI TASK ACCESS (tareas para psicólogos) ────────────────────────────
+  const [psiTaskIds, setPsiTaskIds] = useState<number[]>([]);
+
+  const { data: tareasCatalog = [] } = useQuery<TaskCatalog[]>({
+    queryKey: ["admin", "tareas-catalog"],
+    queryFn: async () => {
+      const res = await fetch("/api/tareas/catalog");
+      if (!res.ok) throw new Error("Error al cargar el catálogo de tareas");
+      return res.json();
+    },
+  });
+
+  const { data: psiAccessData } = useQuery<{ taskIds: number[] }>({
+    queryKey: ["admin", "psi-access", editingPsicologo?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/tareas/psi-access/${editingPsicologo!.id}`);
+      if (!res.ok) throw new Error("Error al cargar accesos de tareas");
+      return res.json();
+    },
+    enabled: !!editingPsicologo?.id && psicologoModalOpen,
+  });
+
+  useEffect(() => {
+    if (psiAccessData) setPsiTaskIds(psiAccessData.taskIds ?? []);
+  }, [psiAccessData]);
+
+  const updatePsiAccessMut = useMutation({
+    mutationFn: async (taskIds: number[]) => {
+      const res = await fetch(`/api/tareas/psi-access/${editingPsicologo!.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al actualizar accesos");
+      return json;
+    },
+    onMutate: (taskIds: number[]) => {
+      const previous = psiTaskIds;
+      setPsiTaskIds(taskIds);
+      return { previous };
+    },
+    onError: (e: any, _vars, context) => {
+      if (context?.previous) setPsiTaskIds(context.previous);
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "psi-access", editingPsicologo?.id] });
+    },
+  });
+
+  const togglePsiTask = (taskId: number, checked: boolean) => {
+    const next = checked
+      ? [...psiTaskIds, taskId]
+      : psiTaskIds.filter((id) => id !== taskId);
+    updatePsiAccessMut.mutate(next);
   };
 
   // ─── AVAILABILITY (admin manages psychologist slots) ─────────────────────
@@ -1576,6 +1644,45 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+            {editingPsicologo?.id && (
+              <div className="border-t pt-4 mt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Tareas para Psicólogos</p>
+                <p className="text-xs text-muted-foreground mb-3">Habilita qué tareas para psicólogos puede asignar y llenar este profesional. Por defecto: ninguna.</p>
+                {(() => {
+                  const psiTasks = tareasCatalog.filter((t) => t.targetRole === "psicologo");
+                  if (psiTasks.length === 0) {
+                    return (
+                      <p className="text-xs text-muted-foreground italic">No hay tareas configuradas como "para Psicólogos" todavía.</p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {psiTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex items-start justify-between gap-3 rounded-xl border border-[#ABAE84]/30 bg-[#F2EADF]/40 p-3"
+                        >
+                          <div className="min-w-0">
+                            <Label htmlFor={`psi-task-${task.id}`} className="text-sm font-medium text-[#333333] cursor-pointer">
+                              {task.name}
+                            </Label>
+                            {task.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                            )}
+                          </div>
+                          <Switch
+                            id={`psi-task-${task.id}`}
+                            checked={psiTaskIds.includes(task.id)}
+                            onCheckedChange={(checked) => togglePsiTask(task.id, checked)}
+                            className="mt-0.5 data-[state=checked]:bg-[#ABAE84]"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             <DialogFooter className="pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => setPsicologoModalOpen(false)} className="rounded-xl">Cancelar</Button>
               <Button type="submit" disabled={createPsicologoMut.isPending || updatePsicologoMut.isPending} className="rounded-xl">

@@ -6,8 +6,9 @@ import {
   taskAssignmentsTable,
   therapeuticTasksTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,14 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: ruedaVidaRecordsTable,
+  auditName: "RUEDA_VIDA",
+  targetTable: "rueda_vida_records",
+  taskKeys: ["rueda-vida"],
+  mapBody: (b) => ({ items: pArr(b.items) as any, accionSemillaArea: pStr(b.accionSemillaArea), accionSemilla: pStr(b.accionSemilla), accionSemillaFecha: pStr(b.accionSemillaFecha), notas: typeof b.notas === "string" ? b.notas.slice(0, 4000) : null }),
+});
+
 function pickAccionSemilla(b: any): { area: string | null; texto: string | null; fecha: string | null } {
   const area = typeof b.accionSemillaArea === "string" && AREA_KEY_SET.has(b.accionSemillaArea)
     ? b.accionSemillaArea : null;
@@ -120,7 +129,7 @@ function pickAccionSemilla(b: any): { area: string | null; texto: string | null;
 // GET /api/rueda-vida/mine — paciente lista sus propios registros
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(ruedaVidaRecordsTable)
-    .where(eq(ruedaVidaRecordsTable.pacienteId, req.session.userId))
+    .where(and(eq(ruedaVidaRecordsTable.pacienteId, req.session.userId), isNull(ruedaVidaRecordsTable.psicologoId)))
     .orderBy(desc(ruedaVidaRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -355,7 +364,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
       ));
     const isSupervisor = rels.some(r => r.psi === req.session.userId || r.ab === req.session.userId);
     if (!isSupervisor) { res.status(403).json({ error: "Acceso denegado" }); return; }
-  } else if (row.pacienteId !== req.session.userId) {
+  } else if (row.pacienteId !== req.session.userId || row.psicologoId !== null) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

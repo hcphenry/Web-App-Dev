@@ -6,8 +6,9 @@ import {
   taskAssignmentsTable,
   therapeuticTasksTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -44,10 +45,18 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: lineaVidaRecordsTable,
+  auditName: "LINEA_VIDA",
+  targetTable: "linea_vida_records",
+  taskKeys: ["linea-de-vida"],
+  mapBody: (b) => ({ presenteCircunstancias: pStr(b.presenteCircunstancias), reflexionPatrones: pStr(b.reflexionPatrones), fortalezasVitales: pStr(b.fortalezasVitales), aprendizajesGenerales: pStr(b.aprendizajesGenerales), eventos: pArr(b.eventos) as any, data: pData(b) }),
+});
+
 // GET /api/linea-vida/mine — paciente lists own records
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(lineaVidaRecordsTable)
-    .where(eq(lineaVidaRecordsTable.pacienteId, req.session.userId))
+    .where(and(eq(lineaVidaRecordsTable.pacienteId, req.session.userId), isNull(lineaVidaRecordsTable.psicologoId)))
     .orderBy(desc(lineaVidaRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -257,7 +266,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
       ));
     const isSupervisor = rels.some(r => r.psi === req.session.userId || r.ab === req.session.userId);
     if (!isSupervisor) { res.status(403).json({ error: "Acceso denegado" }); return; }
-  } else if (row.pacienteId !== req.session.userId) {
+  } else if (row.pacienteId !== req.session.userId || row.psicologoId !== null) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

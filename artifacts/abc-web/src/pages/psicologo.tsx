@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UserCircle, CalendarDays, Plus, Pencil, Trash2, Loader2, Clock, CheckCircle2, XCircle, Users, FileText, Search, X, ChevronLeft, ChevronRight, Activity, ClipboardList } from "lucide-react";
 import DesarrolloSesionForm from "@/components/DesarrolloSesionForm";
 import PortalTareas from "@/components/PortalTareas";
+import PsiPatientTasks from "@/components/PsiPatientTasks";
 
 // ── Lima/GMT-5 helpers — pure UTC arithmetic, browser-timezone-independent ──
 // Lima is always UTC-5, no DST. Subtract 5h, then read with getUTC* methods.
@@ -197,7 +198,7 @@ export default function PsicologoDashboard() {
 
   // Patient modal state
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
-  const [patientModalTab, setPatientModalTab] = useState<"perfil" | "registros" | "sesiones">("perfil");
+  const [patientModalTab, setPatientModalTab] = useState<"perfil" | "registros" | "sesiones" | "tareas">("perfil");
   const [sesionFormOpen, setSesionFormOpen] = useState(false);
 
   const { data: patientSesiones = [], isLoading: loadingPatientSesiones } = useQuery<DesarrolloSesionRecord[]>({
@@ -845,6 +846,12 @@ export default function PsicologoDashboard() {
                 >
                   <Activity className="w-4 h-4" /> Sesiones
                 </button>
+                <button
+                  onClick={() => setPatientModalTab("tareas")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-lg transition-all ${patientModalTab === "tareas" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <ClipboardList className="w-4 h-4" /> Tareas
+                </button>
               </div>
 
               {patientModalTab === "perfil" && (
@@ -1001,6 +1008,10 @@ export default function PsicologoDashboard() {
                     </>
                   )}
                 </div>
+              )}
+
+              {patientModalTab === "tareas" && selectedPatientId !== null && (
+                <PsiPatientTasks pacienteId={selectedPatientId} />
               )}
             </div>
           ) : (

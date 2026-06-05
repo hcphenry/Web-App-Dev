@@ -6,8 +6,9 @@ import {
   taskAssignmentsTable,
   therapeuticTasksTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -87,10 +88,18 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: creenciasIrracionalesRecordsTable,
+  auditName: "CREENCIAS_IRRACIONALES",
+  targetTable: "creencias_irracionales_records",
+  taskKeys: ["creencias-irracionales"],
+  mapBody: (b) => ({ items: pArr(b.items) as any, notas: typeof b.notas === "string" ? b.notas.slice(0, 4000) : null }),
+});
+
 // GET /api/creencias-irracionales/mine — paciente lista sus propios registros
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(creenciasIrracionalesRecordsTable)
-    .where(eq(creenciasIrracionalesRecordsTable.pacienteId, req.session.userId))
+    .where(and(eq(creenciasIrracionalesRecordsTable.pacienteId, req.session.userId), isNull(creenciasIrracionalesRecordsTable.psicologoId)))
     .orderBy(desc(creenciasIrracionalesRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -315,7 +324,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
       ));
     const isSupervisor = rels.some(r => r.psi === req.session.userId || r.ab === req.session.userId);
     if (!isSupervisor) { res.status(403).json({ error: "Acceso denegado" }); return; }
-  } else if (row.pacienteId !== req.session.userId) {
+  } else if (row.pacienteId !== req.session.userId || row.psicologoId !== null) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({

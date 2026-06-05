@@ -11,6 +11,10 @@ interface Props {
   assignmentId?: number | null;
   /** Si está definido, el formulario lo envía un psicólogo/admin EN NOMBRE del paciente indicado. */
   forPacienteId?: number | null;
+  /** Si está definido, el formulario lo llena un psicólogo/admin PARA el paciente indicado (modo psi). */
+  psiPacienteId?: number;
+  /** Registro existente para editar/precargar en modo psi (presente -> edición). */
+  psiRecord?: any | null;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -67,19 +71,20 @@ const SECTIONS: Array<{ id: string; title: string; fields: Array<{ key: string; 
   },
 ];
 
-export default function DesarrolloSesionForm({ assignmentId, forPacienteId, onCancel, onSaved }: Props) {
+export default function DesarrolloSesionForm({ assignmentId, forPacienteId, psiPacienteId, psiRecord, onCancel, onSaved }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const psiMode = psiPacienteId != null;
 
   // Información de la sesión (encabezado)
   const today = new Date();
   const isoToday = today.toISOString().slice(0, 10);
   const isoTime = today.toTimeString().slice(0, 5);
 
-  const [fechaSesion, setFechaSesion] = useState(isoToday);
-  const [horaSesion, setHoraSesion] = useState(isoTime);
-  const [numeroSesion, setNumeroSesion] = useState("");
-  const [data, setData] = useState<Record<string, string>>({});
+  const [fechaSesion, setFechaSesion] = useState(psiRecord?.fechaSesion ?? isoToday);
+  const [horaSesion, setHoraSesion] = useState(psiRecord?.horaSesion ?? isoTime);
+  const [numeroSesion, setNumeroSesion] = useState(psiRecord?.numeroSesion ?? "");
+  const [data, setData] = useState<Record<string, string>>(psiRecord?.data ?? {});
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
 
@@ -92,14 +97,20 @@ export default function DesarrolloSesionForm({ assignmentId, forPacienteId, onCa
     }
     setSaving(true);
     try {
-      const url = forPacienteId
-        ? `/api/desarrollo-sesion/for-patient/${forPacienteId}`
-        : "/api/desarrollo-sesion/mine";
-      const body = forPacienteId
-        ? { fechaSesion, horaSesion, numeroSesion, data }
-        : { assignmentId: assignmentId ?? null, fechaSesion, horaSesion, numeroSesion, data };
+      let url: string;
+      let method = "POST";
+      if (psiMode) {
+        if (psiRecord?.id) { url = `/api/desarrollo-sesion/psi/${psiRecord.id}`; method = "PATCH"; }
+        else { url = `/api/desarrollo-sesion/psi/for-patient/${psiPacienteId}`; method = "POST"; }
+      } else {
+        url = forPacienteId
+          ? `/api/desarrollo-sesion/for-patient/${forPacienteId}`
+          : "/api/desarrollo-sesion/mine";
+      }
+      const body: Record<string, unknown> = { fechaSesion, horaSesion, numeroSesion, data };
+      if (!psiMode && !forPacienteId) body.assignmentId = assignmentId ?? null;
       const r = await fetch(url, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -107,10 +118,14 @@ export default function DesarrolloSesionForm({ assignmentId, forPacienteId, onCa
         const e = await r.json().catch(() => ({}));
         throw new Error(e.error || "Error al guardar");
       }
-      toast({ title: "Sesión guardada", description: "El desarrollo de la sesión se registró correctamente." });
-      queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
-      if (forPacienteId) {
-        queryClient.invalidateQueries({ queryKey: ["psicologo-patient-sesiones", forPacienteId] });
+      toast(psiMode
+        ? { title: "Registro guardado" }
+        : { title: "Sesión guardada", description: "El desarrollo de la sesión se registró correctamente." });
+      if (!psiMode) {
+        queryClient.invalidateQueries({ queryKey: ["mine-tasks"] });
+        if (forPacienteId) {
+          queryClient.invalidateQueries({ queryKey: ["psicologo-patient-sesiones", forPacienteId] });
+        }
       }
       onSaved();
     } catch (e) {

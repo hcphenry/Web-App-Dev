@@ -5,8 +5,9 @@ import {
   primeraConsultaRecordsTable,
   taskAssignmentsTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -43,9 +44,17 @@ function getIp(req: any): string | null {
 
 router.use(loadUserRole);
 
+registerPsiRecordRoutes(router, {
+  table: primeraConsultaRecordsTable,
+  auditName: "PRIMERA_CONSULTA",
+  targetTable: "primera_consulta_records",
+  taskKeys: ["primera-consulta-ninos"],
+  mapBody: (b) => ({ nombreNino: pStr(b.nombreNino) ?? "", edad: pStr(b.edad), motivoConsulta: pStr(b.motivoConsulta), data: pData(b) }),
+});
+
 router.get("/mine", requirePaciente, async (req: any, res) => {
   const rows = await db.select().from(primeraConsultaRecordsTable)
-    .where(eq(primeraConsultaRecordsTable.pacienteId, req.session.userId))
+    .where(and(eq(primeraConsultaRecordsTable.pacienteId, req.session.userId), isNull(primeraConsultaRecordsTable.psicologoId)))
     .orderBy(desc(primeraConsultaRecordsTable.createdAt));
   res.json(rows.map(r => ({
     ...r,
@@ -134,7 +143,7 @@ router.get("/:id", requireAuth, async (req: any, res) => {
     .where(eq(primeraConsultaRecordsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "No encontrado" }); return; }
   const role = req.session.userRole;
-  if (role !== "admin" && role !== "psicologo" && row.pacienteId !== req.session.userId) {
+  if (role !== "admin" && role !== "psicologo" && (row.pacienteId !== req.session.userId || row.psicologoId !== null)) {
     res.status(403).json({ error: "Acceso denegado" }); return;
   }
   res.json({
