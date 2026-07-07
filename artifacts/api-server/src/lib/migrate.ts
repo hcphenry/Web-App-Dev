@@ -864,6 +864,31 @@ export async function runMigrations() {
       logger.info("[migrate] ✓ PHASE 25: psychologist_task_access + psicologo_id en registros");
     } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 25 (tareas para psicólogos parte 2) skipped"); }
 
+    // ── PHASE 26: Tablón de Anuncios — mensajes psicólogo → paciente.
+    //   Borrado LÓGICO (auditoría clínica): deleted_by_psi_at oculta a ambos;
+    //   deleted_by_paciente_at oculta solo al paciente. read_at = leído por
+    //   el paciente; al editar se resetea para re-entregar como nuevo.
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS psi_messages (
+          id SERIAL PRIMARY KEY,
+          psicologo_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          paciente_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          assignment_id INTEGER REFERENCES task_assignments(id) ON DELETE SET NULL,
+          body TEXT NOT NULL,
+          read_at TIMESTAMP,
+          edited_at TIMESTAMP,
+          deleted_by_psi_at TIMESTAMP,
+          deleted_by_paciente_at TIMESTAMP,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS psi_messages_paciente_idx ON psi_messages (paciente_id);
+        CREATE INDEX IF NOT EXISTS psi_messages_psicologo_idx ON psi_messages (psicologo_id);
+      `);
+      logger.info("[migrate] ✓ PHASE 26: psi_messages (Tablón de Anuncios)");
+    } catch (e) { logger.warn({ err: e }, "[migrate] PHASE 26 (tablón de anuncios) skipped"); }
+
     logger.info("[migrate] ✓ Schema migrations applied successfully");
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}

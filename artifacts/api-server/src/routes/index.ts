@@ -18,6 +18,7 @@ import consentimientoInformadoRecordsRouter from "./consentimientoInformadoRecor
 import distorsionesRecordsRouter from "./distorsionesRecords";
 import ruedaVidaRecordsRouter from "./ruedaVidaRecords";
 import creenciasIrracionalesRecordsRouter from "./creenciasIrracionalesRecords";
+import psiMessagesRouter from "./psiMessages";
 
 const router: IRouter = Router();
 
@@ -45,5 +46,6 @@ router.use("/consentimiento-informado", consentimientoInformadoRecordsRouter);
 router.use("/distorsiones", distorsionesRecordsRouter);
 router.use("/rueda-vida", ruedaVidaRecordsRouter);
 router.use("/creencias-irracionales", creenciasIrracionalesRecordsRouter);
+router.use("/mensajes", psiMessagesRouter);
 
 export default router;

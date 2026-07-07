@@ -1,1 +1,2 @@
 - [Psi record isolation](psi-record-isolation.md) — psicologo_id discriminator rules for "para Psicólogos" tasks; every patient-readable endpoint must exclude psi-filled rows.
+- [Psi ownership authz](psi-messages-authz.md) — psi→patient ownership is name-based (psicologa_asignada ilike users.name) app-wide; reuse the pattern, harden only via app-wide FK migration.

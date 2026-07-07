@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { Brain, LogOut, LayoutDashboard, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PatientNotifications } from "@/components/PatientNotifications";
 
 export function Navbar() {
   const [location, setLocation] = useLocation();
@@ -57,6 +58,8 @@ export function Navbar() {
                 <span className="hidden sm:inline">Mis Registros</span>
               </Link>
             )}
+
+            {user.role === "user" && <PatientNotifications />}
 
             <div className="h-8 w-px bg-border mx-2"></div>
 
