@@ -88,6 +88,114 @@ async function psiHasTaskAccess(req: any, taskKeys: string[]): Promise<boolean> 
   return !!row;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Central source of truth: which task keys each "para Psicólogos" record route
+// serves. Every record route reads its `taskKeys` from here (via
+// `psiRecordTaskKeys`) instead of an inline array, so adding or renaming a task
+// key only has to happen in one place. `assertPsiRecordTaskKeyCoverage()` runs
+// at startup and fails loudly when this map drifts from the DB task catalog,
+// which would otherwise make the admin enable/disable gate silently misbehave.
+// ─────────────────────────────────────────────────────────────────────────
+export const PSI_RECORD_TASK_KEYS = {
+  "anamnesis": ["anamnesis-menor"],
+  "primera-consulta": ["primera-consulta-ninos"],
+  "desarrollo-sesion": ["desarrollo-sesion", "desarrollo-sesion-paciente"],
+  "consulta-psicologica": ["consulta-psicologica-adultos"],
+  "plan-intervencion": ["plan-intervencion-adultos", "plan-intervencion-ninos"],
+  "linea-vida": ["linea-de-vida"],
+  "distorsiones": ["distorsiones-realidad"],
+  "rueda-vida": ["rueda-vida"],
+  "creencias-irracionales": ["creencias-irracionales"],
+} as const satisfies Record<string, readonly string[]>;
+
+export type PsiRecordRouteId = keyof typeof PSI_RECORD_TASK_KEYS;
+
+// Inverse map taskKey → routeId, built once at import time. Throws immediately
+// if any task key is claimed by more than one route — a key must map to exactly
+// one route, or the access gate becomes ambiguous.
+export const PSI_TASK_KEY_TO_ROUTE: Readonly<Record<string, PsiRecordRouteId>> = (() => {
+  const map: Record<string, PsiRecordRouteId> = {};
+  for (const routeId of Object.keys(PSI_RECORD_TASK_KEYS) as PsiRecordRouteId[]) {
+    for (const key of PSI_RECORD_TASK_KEYS[routeId]) {
+      if (map[key]) {
+        throw new Error(
+          `[psiRecords] task key "${key}" is mapped to multiple record routes ` +
+          `("${map[key]}" and "${routeId}"); each key must map to exactly one route.`,
+        );
+      }
+      map[key] = routeId;
+    }
+  }
+  return map;
+})();
+
+/**
+ * Task keys served by a record route. Use this in each route's PsiRecordConfig
+ * instead of an inline array so the taskKey → route mapping lives in one place.
+ */
+export function psiRecordTaskKeys(routeId: PsiRecordRouteId): string[] {
+  const keys = PSI_RECORD_TASK_KEYS[routeId];
+  if (!keys) {
+    throw new Error(`[psiRecords] no task keys mapped for record route "${routeId}"`);
+  }
+  return [...keys];
+}
+
+// "para Psicólogos" tasks (target_role='psicologo') that intentionally have NO
+// dedicated record route (e.g. clinical notes handled elsewhere). They are
+// excluded from the startup coverage check. Add a key here ONLY when you have
+// deliberately decided it does not need a registerPsiRecordRoutes route.
+export const ROUTELESS_PSI_TASK_KEYS: ReadonlySet<string> = new Set(["notas-sesion-psi"]);
+
+/**
+ * Startup guard against task-type drift. Fails loudly (throws) when the central
+ * PSI_RECORD_TASK_KEYS map no longer agrees with the DB task catalog:
+ *
+ *   1. A taskKey declared in the map no longer exists in therapeutic_tasks
+ *      (someone renamed/deleted the key without updating the route → the admin
+ *      enable/disable gate would silently stop matching).
+ *   2. A "para Psicólogos" task (target_role='psicologo') maps to no route and
+ *      is not in ROUTELESS_PSI_TASK_KEYS (someone added a new psi task without
+ *      giving it a record route).
+ */
+export async function assertPsiRecordTaskKeyCoverage(): Promise<void> {
+  const tasks = await db.select({
+    key: therapeuticTasksTable.key,
+    targetRole: therapeuticTasksTable.targetRole,
+  }).from(therapeuticTasksTable);
+
+  const existingKeys = new Set(tasks.map((t) => t.key));
+  const errors: string[] = [];
+
+  // (1) Every mapped key must still exist in the catalog.
+  for (const key of Object.keys(PSI_TASK_KEY_TO_ROUTE)) {
+    if (!existingKeys.has(key)) {
+      errors.push(
+        `mapped task key "${key}" (route "${PSI_TASK_KEY_TO_ROUTE[key]}") does not exist in ` +
+        `therapeutic_tasks — was it renamed or deleted without updating PSI_RECORD_TASK_KEYS?`,
+      );
+    }
+  }
+
+  // (2) Every psi-target task must map to a route (unless intentionally route-less).
+  for (const t of tasks) {
+    if (t.targetRole !== "psicologo") continue;
+    if (ROUTELESS_PSI_TASK_KEYS.has(t.key)) continue;
+    if (!PSI_TASK_KEY_TO_ROUTE[t.key]) {
+      errors.push(
+        `"para Psicólogos" task "${t.key}" maps to no record route — add it to ` +
+        `PSI_RECORD_TASK_KEYS, or to ROUTELESS_PSI_TASK_KEYS if it is intentionally route-less.`,
+      );
+    }
+  }
+
+  if (errors.length) {
+    throw new Error(
+      `[psiRecords] task key map drifted from the catalog:\n  - ${errors.join("\n  - ")}`,
+    );
+  }
+}
+
 export interface PsiRecordConfig {
   /** Drizzle record table (must have pacienteId, psicologoId, assignmentId, createdAt, updatedAt). */
   table: any;
@@ -97,7 +205,10 @@ export interface PsiRecordConfig {
   targetTable: string;
   /** Map request body → typed/non-standard columns (incl. `data`) for INSERT. */
   mapBody: (b: any) => Record<string, unknown>;
-  /** Task keys (target_role='psicologo') que usan esta ruta; gate de acceso del admin. */
+  /**
+   * Task keys que usan esta ruta; gate de acceso del admin. Usa
+   * `psiRecordTaskKeys("<route-id>")` (mapa central) en lugar de un array inline.
+   */
   taskKeys: string[];
 }
 

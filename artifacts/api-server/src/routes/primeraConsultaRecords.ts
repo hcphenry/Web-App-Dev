@@ -7,7 +7,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
-import { registerPsiRecordRoutes, pStr, pData, pArr } from "../lib/psiRecords";
+import { registerPsiRecordRoutes, psiRecordTaskKeys, pStr, pData, pArr } from "../lib/psiRecords";
 
 const router: IRouter = Router();
 
@@ -48,7 +48,7 @@ registerPsiRecordRoutes(router, {
   table: primeraConsultaRecordsTable,
   auditName: "PRIMERA_CONSULTA",
   targetTable: "primera_consulta_records",
-  taskKeys: ["primera-consulta-ninos"],
+  taskKeys: psiRecordTaskKeys("primera-consulta"),
   mapBody: (b) => ({ nombreNino: pStr(b.nombreNino) ?? "", edad: pStr(b.edad), motivoConsulta: pStr(b.motivoConsulta), data: pData(b) }),
 });
 
