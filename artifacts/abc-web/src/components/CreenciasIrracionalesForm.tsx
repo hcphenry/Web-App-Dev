@@ -9,7 +9,7 @@ import { es } from "date-fns/locale";
 import {
   ArrowLeft, Save, Loader2, Pencil, Trash2, X,
   History as HistoryIcon, BrainCircuit, Clock as ClockIcon,
-  AlertTriangle, Sparkles,
+  AlertTriangle, Sparkles, Eye, Lock,
 } from "lucide-react";
 
 // ── Paleta "Positivamente" (paleta de colores POSITIVAMENTE.pdf) ────────────
@@ -157,6 +157,7 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
   const [loadingList, setLoadingList] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(psiMode ? (psiRecord?.id ?? null) : null);
+  const [readOnly, setReadOnly] = useState(false);
   const [values, setValues] = useState<{ [k: string]: number }>(
     psiMode && psiRecord ? valuesFromRecord(psiRecord) : Object.fromEntries(CREENCIAS.map(d => [d.key, 0])),
   );
@@ -178,13 +179,15 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
   }, []);
 
   const startNew = () => {
+    setReadOnly(false);
     setEditingId(null);
     setValues(Object.fromEntries(CREENCIAS.map(d => [d.key, 0])));
     setNotas("");
     setView("form");
   };
 
-  const startEdit = (rec: Record) => {
+  const startEdit = (rec: Record, viewOnly = false) => {
+    setReadOnly(viewOnly);
     setEditingId(rec.id);
     const vmap: { [k: string]: number } = Object.fromEntries(CREENCIAS.map(d => [d.key, 0]));
     for (const it of rec.items ?? []) {
@@ -351,9 +354,16 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => startEdit(rec)} disabled={!editable} className="rounded-full">
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Ver / editar
-                      </Button>
+                      {editable ? (
+                        <Button size="sm" variant="outline" onClick={() => startEdit(rec)} className="rounded-full">
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> Ver / editar
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => startEdit(rec, true)} className="rounded-full"
+                          style={{ borderColor: PALETTE.azul, color: PALETTE.tinta, background: PALETTE.azul + "22" }}>
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Ver
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => handleDelete(rec)} disabled={!editable}
                         className="rounded-full" style={editable ? { color: "#B91C1C", borderColor: "#FCA5A5" } : undefined}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -372,7 +382,7 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
   // ── FORMULARIO ────────────────────────────────────────────────────────────
   const isEdit = editingId !== null;
   const editingRec = isEdit ? records.find(r => r.id === editingId) : null;
-  const editLocked = !!(editingRec && !(editingRec.canEdit ?? (Date.now() - new Date(editingRec.createdAt).getTime() < EDIT_WINDOW_MS)));
+  const editLocked = readOnly || !!(editingRec && !(editingRec.canEdit ?? (Date.now() - new Date(editingRec.createdAt).getTime() < EDIT_WINDOW_MS)));
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -382,10 +392,12 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
       >
         <div>
           <h2 className="text-lg font-display font-semibold" style={{ color: PALETTE.tinta }}>
-            {isEdit ? "Editar registro" : "Nuevo registro"}
+            {editLocked ? "Ver registro" : isEdit ? "Editar registro" : "Nuevo registro"}
           </h2>
           <p className="text-sm" style={{ color: PALETTE.tinta + "AA" }}>
-            Indica del 0 al 100 qué tan presente sientes hoy cada creencia irracional.
+            {editLocked
+              ? "Estos son los valores que registraste. Este registro ya no puede modificarse."
+              : "Indica del 0 al 100 qué tan presente sientes hoy cada creencia irracional."}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -402,8 +414,10 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
       </div>
 
       {editLocked && (
-        <div className="rounded-xl border p-3 text-sm flex items-center gap-2" style={{ borderColor: "#FECACA", background: "#FEF2F2", color: "#991B1B" }}>
-          <AlertTriangle className="w-4 h-4" /> Este registro fue creado hace más de 48 horas y ya no puede modificarse.
+        <div className="rounded-xl border p-3 text-sm flex items-center gap-2"
+          style={{ borderColor: PALETTE.mostaza + "88", background: PALETTE.crema, color: PALETTE.tinta }}>
+          <Lock className="w-4 h-4" style={{ color: PALETTE.mostaza }} />
+          Registro bloqueado: fue creado hace más de 48 horas. Puedes verlo en modo solo lectura.
         </div>
       )}
 
@@ -467,13 +481,15 @@ export default function CreenciasIrracionalesForm({ assignmentId, psiPacienteId,
 
       <div className="flex flex-wrap justify-end gap-3 pt-2">
         <Button variant="outline" onClick={() => setView("history")} className="rounded-full">
-          Cancelar
+          {editLocked ? "Volver al historial" : "Cancelar"}
         </Button>
-        <Button onClick={handleSave} disabled={saving || editLocked} className="rounded-full shadow-sm"
-          style={{ background: PALETTE.tinta, color: "white" }}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          {isEdit ? "Guardar cambios" : "Guardar registro"}
-        </Button>
+        {!editLocked && (
+          <Button onClick={handleSave} disabled={saving} className="rounded-full shadow-sm"
+            style={{ background: PALETTE.tinta, color: "white" }}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            {isEdit ? "Guardar cambios" : "Guardar registro"}
+          </Button>
+        )}
       </div>
     </div>
   );
