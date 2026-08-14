@@ -3,14 +3,13 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Brain, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useLogin, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import logoPositivamente from "@/assets/images/LOGOS POSITIVAMENTE PNG-19.png"
 
 const loginSchema = z.object({
   email: z.string().email("Correo electrónico inválido"),
@@ -81,10 +80,8 @@ export default function Login() {
       <div className="w-full max-w-md p-4 relative z-10">
         <div className="text-center mb-8">
          
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-xl shadow-primary/20 mb-4 border border-white/50">
-               
-             <Brain className="w-8 h-8 text-primary" />
-              
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl shadow-xl shadow-primary/20 mb-4 border border-white/50 overflow-hidden">
+            <img src={`${import.meta.env.BASE_URL}images/logo-positivamente.jpeg`} alt="Positivamente" className="w-full h-full object-cover" />
           </div>
 
           

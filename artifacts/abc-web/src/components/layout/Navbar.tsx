@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
-import { Brain, LogOut, LayoutDashboard, FileText } from "lucide-react";
+import { LogOut, LayoutDashboard, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PatientNotifications } from "@/components/PatientNotifications";
 
@@ -28,8 +28,8 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-xl text-primary">
-              <Brain className="h-6 w-6" />
+            <div className="rounded-xl overflow-hidden">
+              <img src={`${import.meta.env.BASE_URL}images/logo-positivamente.jpeg`} alt="Positivamente" className="h-10 w-10 object-cover" />
             </div>
             <span className="font-display font-bold text-xl text-foreground tracking-tight">
               <span className="text-primary">POSITIVA</span>MENTE
